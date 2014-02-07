@@ -1,20 +1,23 @@
+# Alt-Ergo
+
 Alt-Ergo is an automatic theorem prover.  Alt-Ergo's input is an arbitray
 first-order formula in the Why input format.
 
-COPYRIGHT
-=========
+Alt-Ergo was developed at LRI, and is now maintained at OCamlPro:
+
+See http://alt-ergo.ocamlpro.com/
+
+### COPYRIGHT
 
 This program is distributed under the CeCILL-C licence.
 See the enclosed file COPYING.
 
 
-INSTALLATION
-============
+### INSTALLATION
 
 See the enclosed file INSTALL.
 
-SUPPORT
-=======
+### SUPPORT
 
 Bugs are first fixed in the professionnal version of Alt-Ergo
 (Alt-Ergo@OCamlPro), then public versions are released after a delay
