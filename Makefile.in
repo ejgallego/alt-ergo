@@ -1,0 +1,485 @@
+#****************************************************************************#
+#     The Alt-Ergo theorem prover                                            #
+#     Copyright (C) 2006-2013                                                #
+#     CNRS - INRIA - Universite Paris Sud                                    #
+#                                                                            #
+#     Sylvain Conchon                                                        #
+#     Evelyne Contejean                                                      #
+#                                                                            #
+#     Francois Bobot                                                         #
+#     Mohamed Iguernelala                                                    #
+#     Stephane Lescuyer                                                      #
+#     Alain Mebsout                                                          #
+#                                                                            #
+#   This file is distributed under the terms of the CeCILL-C licence         #
+#****************************************************************************#
+
+# sample Makefile for OCaml
+# Copyright (C) 2001 Jean-Christophe FILLIATRE
+# 
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License version 2, as published by the Free Software Foundation.
+# 
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# 
+# See the GNU Library General Public License version 2 for more details
+# (enclosed in the file LGPL).
+
+# where to install the binaries
+DESTDIR=
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+BINDIR=$(DESTDIR)@bindir@
+LIBDIR=$(DESTDIR)@libdir@/ocaml/alt-ergo
+DATADIR=$(DESTDIR)@datadir@
+
+# where to install the man page
+MANDIR=$(DESTDIR)@mandir@
+
+# other variables set by ./configure
+OCAMLC   = @OCAMLC@
+OCAMLOPT = @OCAMLOPT@
+OCAMLDEP = @OCAMLDEP@
+OCAMLLEX = @OCAMLLEX@
+OCAMLYACC= @OCAMLYACC@
+OCAMLBEST = @OCAMLBEST@
+OCAMLVERSION = @OCAMLVERSION@
+OCAMLWIN32 = @OCAMLWIN32@
+EXE = @EXE@
+ENABLEGUI = @ENABLEGUI@
+
+LOCAL_INC = -I src/util -I src/structures -I src/theories -I src/instances -I src/sat -I src/preprocess -I src/parsing -I src/gui -I src/main 
+INCLUDES = @ZARITHLIB@ @OCAMLGRAPHLIB@ @LABLGTK2LIB@ $(LOCAL_INC)
+#for coverage -I /usr/local/lib/ocaml/3.12.1/bisect -pp "camlp4o str.cma /usr/local/lib/ocaml/3.12.1/bisect/bisect_pp.cmo"
+
+BFLAGS = -annot -g $(INCLUDES)
+OFLAGS = -annot -inline 1000 $(INCLUDES) -for-pack AltErgo
+
+BIBBYTE = zarith.cma nums.cma graph.cma unix.cma
+# for coverage bisect.cma 
+
+BIBOPT = $(BIBBYTE:.cma=.cmxa)
+
+BIBGUIBYTE = zarith.cma threads.cma lablgtk.cma lablgtksourceview2.cma gtkThread.cmo
+BIBGUIOPT = zarith.cmxa threads.cmxa lablgtk.cmxa lablgtksourceview2.cmxa gtkThread.cmx
+
+QUIET =
+# main target
+#############
+
+NAME = alt-ergo
+GUINAME=altgr-ergo
+LIBNAME = altErgo
+BYTE=$(NAME).byte
+OPT=$(NAME).opt
+
+ifeq ($(OCAMLBEST),opt)
+#all: pack xpack opt gui META
+all: opt
+else
+#all: pack byte gui META
+all: byte
+endif
+
+
+GENERATED = src/util/version.ml \
+            src/parsing/why_parser.ml \
+            src/parsing/why_parser.mli \
+            src/parsing/why_lexer.ml \
+            src/parsing/smt_parser.ml \
+            src/parsing/smt_parser.mli \
+            src/parsing/smt_lex.ml \
+            src/parsing/smtlib2_parse.ml \
+            src/parsing/smtlib2_parse.mli \
+            src/parsing/smtlib2_lex.ml
+
+# bytecode and native-code compilation
+######################################
+
+CMO = src/util/version.cmo \
+      src/util/numbers.cmo \
+      src/util/timers.cmo \
+      src/util/options.cmo \
+      src/util/loc.cmo \
+      src/util/hashcons.cmo \
+      src/util/hstring.cmo \
+      src/structures/exception.cmo \
+      src/structures/symbols.cmo \
+      src/structures/subst.cmo \
+      src/structures/ty.cmo \
+      src/structures/why_ptree.cmo \
+      src/structures/smtlib2_ast.cmo \
+      src/structures/term.cmo \
+      src/structures/literal.cmo \
+      src/structures/formula.cmo \
+      src/structures/explanation.cmo \
+      src/parsing/errors.cmo \
+      src/parsing/why_parser.cmo \
+      src/parsing/why_lexer.cmo \
+      src/parsing/smt_parser.cmo \
+      src/parsing/smt_lex.cmo \
+      src/parsing/smtlib2_parse.cmo \
+      src/parsing/smtlib2_lex.cmo \
+      src/preprocess/existantial.cmo \
+      src/preprocess/smt_to_why.cmo \
+      src/preprocess/smtlib2_to_why.cmo \
+      src/preprocess/triggers.cmo \
+      src/preprocess/why_typing.cmo \
+      src/preprocess/cnf.cmo \
+      src/instances/matching.cmo \
+      src/theories/polynome.cmo \
+      src/theories/ac.cmo \
+      src/theories/intervals.cmo \
+      src/theories/fm.cmo \
+      src/theories/arith.cmo \
+      src/theories/records.cmo \
+      src/theories/bitv.cmo \
+      src/theories/arrays.cmo \
+      src/theories/sum.cmo \
+      src/theories/combine.cmo \
+      src/theories/incr_match.cmo \
+      src/theories/boxed.cmo \
+      src/theories/instantiation.cmo \
+      src/theories/custom_theory.cmo \
+      src/theories/uf.cmo \
+      src/theories/use.cmo \
+      src/theories/cc.cmo \
+      src/sat/sat.cmo
+
+CMOFRONT = src/preprocess/pruning.cmo src/main/frontend.cmo
+
+MAINCMO = $(CMO) $(CMOFRONT) src/main/main_text.cmo
+
+RUNCMO = $(CMO) run.cmo
+
+ifeq ($(ENABLEGUI),yes)
+	GUICMO = $(CMO) $(CMOFRONT) \
+                 src/gui/gui_session.cmo \
+                 src/gui/why_annoted.cmo \
+	         src/gui/why_connected.cmo \
+                 src/gui/gui_replay.cmo \
+                 src/main/main_gui.cmo
+else 
+	GUICMO = 
+endif
+
+CMX = $(CMO:.cmo=.cmx)
+CMXFRONT = $(CMOFRONT:.cmo=.cmx)
+MAINCMX = $(MAINCMO:.cmo=.cmx)
+RUNCMX = $(RUNCMO:.cmo=.cmx)
+GUICMX = $(GUICMO:.cmo=.cmx)
+
+byte: $(NAME).byte
+opt: $(NAME).opt
+pack: $(LIBNAME).cmo
+xpack: $(LIBNAME).cmx
+
+
+####
+$(LIBNAME).cmo: $(CMO) 
+	$(if $(QUIET),@echo 'Library $@' &&) $(OCAMLC) $(BFLAGS) -pack -o $(LIBNAME).cmo $^
+
+$(LIBNAME).cmx: $(CMX)
+	$(if $(QUIET),@echo 'Library $@' &&) $(OCAMLOPT) $(INCLUDES)  -pack -o $(LIBNAME).cmx $^
+
+
+
+####
+$(NAME).byte: $(MAINCMO) 
+	$(if $(QUIET),@echo 'Linking $@' &&) $(OCAMLC) $(BFLAGS) -o $@ $(BIBBYTE) $^
+
+$(NAME).opt: $(MAINCMX)
+	$(if $(QUIET),@echo 'Linking $@' &&) $(OCAMLOPT) $(OFLAGS) -o $@ $(BIBOPT) $^
+
+####
+$(GUINAME).byte: $(GUICMO)
+	$(if $(QUIET),@echo 'Linking $@' &&) $(OCAMLC) $(BFLAGS) -o $(GUINAME).byte $(BIBBYTE) $(BIBGUIBYTE) $^
+
+$(GUINAME).opt: $(GUICMX)
+	$(if $(QUIET),@echo 'Linking $@' &&) $(OCAMLOPT) $(OFLAGS) -o $(GUINAME).opt $(BIBOPT) $(BIBGUIOPT) $^
+
+ifeq ($(ENABLEGUI),yes)
+gui: $(GUINAME).$(OCAMLBEST)
+else
+gui:
+	@echo "gui compilation skipped (lablgtksourceview not detected)"
+endif
+
+
+.PHONY: gui
+
+
+testbyte:$(BYTE)
+	make -C util/
+	tests/test.sh " ./$(BYTE) -glouton -triggers-var -arrays "
+
+testopt:$(OPT)
+	make -C util/
+	tests/test.sh " ./$(OPT) -glouton -triggers-var -arrays "
+
+testproof:$(OPT)
+	make -C util/
+	tests/test.sh " ./$(OPT) -glouton -triggers-var -arrays -proof -debug-proof"
+
+challenge:$(OPT)
+	make -C util/
+	tests/challenge.sh " ./$(OPT) "
+
+
+testoptsel:$(OPT)
+	tests/test.sh "./$(OPT) -select 2 -glouton -triggers-var "
+
+
+
+VERSION=0.95.2
+
+#We use the filename of a file in order to create a depency between version.ml
+#and the result of ./revision.sh
+
+src/util/version.ml: config.status
+# set version (and possibly revision) value in version.ml
+	@echo "let version = \""$(VERSION)"\"" > src/util/version.ml
+	@echo "let date = \""`date`"\"" >> src/util/version.ml
+	@echo "let libdir = \""$(LIBDIR)"\"" >> src/util/version.ml
+
+META: config.status
+	@echo "description = \"API of Alt-Ergo: An automatic theorem prover dedicated to program verification\"" > META
+	@echo "version = \""$(VERSION)"\"" >> META
+	@echo "archive(byte) = \"altErgo.cmo\"" >> META
+	@echo "archive(native) = \"altErgo.cmx\"" >> META
+	@echo "requires = \"unix num ocamlgraph\"" >> META
+
+
+# file headers
+##############
+headers:
+	headache -c doc/headache_config.txt -h doc/ergoheader.txt \
+		Makefile.in configure.in README INSTALL \
+		*.ml *.ml[ily]
+
+
+# installation
+##############
+
+install-indep: install-man
+
+install-byte: install-indep
+	mkdir -p $(BINDIR)
+	cp -f $(NAME).byte $(BINDIR)/$(NAME)$(EXE)
+
+install-opt: install-indep
+	mkdir -p $(BINDIR)
+	cp -f $(NAME).opt $(BINDIR)/$(NAME)$(EXE)
+
+install-man:
+	mkdir -p $(MANDIR)/man1
+	cp -f doc/*.1 $(MANDIR)/man1
+
+install: install-indep
+	mkdir -p $(BINDIR)
+	cp -f $(NAME).$(OCAMLBEST) $(BINDIR)/$(NAME)$(EXE)
+
+install-gui:
+	cp -f $(GUINAME).$(OCAMLBEST) $(BINDIR)/$(GUINAME)$(EXE)
+	mkdir -p $(DATADIR)/gtksourceview-2.0/language-specs
+	cp -f doc/gtk-lang/alt-ergo.lang $(DATADIR)/gtksourceview-2.0/language-specs/alt-ergo.lang
+
+install-pack-opt: xpack
+	mkdir -p $(LIBDIR)
+	cp -f $(LIBNAME).cmx $(LIBDIR)
+	cp -f $(LIBNAME).o $(LIBDIR)
+
+install-pack-byte: pack META
+	mkdir -p $(LIBDIR)
+	cp -f $(LIBNAME).cmo $(LIBDIR)
+	cp -f $(LIBNAME).cmi $(LIBDIR)
+	cp -f META $(LIBDIR)
+
+install-pack:: install-pack-byte
+ifeq ($(OCAMLBEST),opt)
+install-pack:: install-pack-opt
+endif
+
+static: $(MAINCMX)
+	$(OCAMLOPT) -ccopt -static $(OFLAGS) -o $@ $(BIBOPT) $^
+	strip $@
+	mv static alt-ergo-static-$(VERSION)-$(ARCH)
+
+# PUBLIC RELEASES
+#############################################
+
+PUBLIC_RELEASE=alt-ergo-$(VERSION)
+PUBLIC_GUI_RELEASE=altgr-ergo-$(VERSION)
+
+PUBLIC_TARGZ=$(PUBLIC_RELEASE).tar.gz
+
+public-release-http: byte pack $(GUINAME).byte opt xpack $(GUINAME).opt
+	rm -rf ../public-release
+	mkdir -p ../public-release/$(PUBLIC_RELEASE)/$(PUBLIC_RELEASE)
+	cp -rf CHANGES configure configure.in COPYING INSTALL LICENSE Makefile.in README.md ../public-release/$(PUBLIC_RELEASE)/$(PUBLIC_RELEASE)
+	strip $(NAME).opt
+	mv $(NAME).opt alt-ergo-$(VERSION)-$(ARCH)
+	cp -rf alt-ergo-$(VERSION)-$(ARCH) CHANGES COPYING INSTALL LICENSE README.md ../public-release/$(PUBLIC_RELEASE)
+	git clean -f -x -d .
+	cp -rf doc src examples ../public-release/$(PUBLIC_RELEASE)/$(PUBLIC_RELEASE)
+	cd ../public-release/$(PUBLIC_RELEASE) && tar cfz $(PUBLIC_TARGZ) $(PUBLIC_RELEASE)
+	rm -rf ../public-release/$(PUBLIC_RELEASE)/$(PUBLIC_RELEASE)
+	cd ../public-release && tar cfz uncompress-me-in-http.tar.gz $(PUBLIC_RELEASE)
+	autoconf && ./configure
+
+PUBLIC_RELEASE_OPAM=alt-ergo.$(VERSION)
+PUBLIC_GUI_RELEASE_OPAM=altgr-ergo.$(VERSION)
+
+public-release: public-release-http
+# for alt-ergo
+	rm -rf ../opam
+	mkdir -p ../opam/$(PUBLIC_RELEASE_OPAM)/files
+	echo "Automatic theorem prover based on SMT technology and dedicated to program verification" >> ../opam/$(PUBLIC_RELEASE_OPAM)/desc
+	echo "archive: \"http://alt-ergo.ocamlpro.com/http/$(PUBLIC_RELEASE)/$(PUBLIC_TARGZ)\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/url
+	echo "checksum: \"`md5sum ../public-release/$(PUBLIC_RELEASE)/$(PUBLIC_TARGZ) | cut -d" " -f1`\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/url
+	echo "opam-version: \"1\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "maintainer: \"alt-ergo@ocamlpro.com\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "license: \"CeCILL-C\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "homepage: \"http://alt-ergo.ocamlpro.com/\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "build: [" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "\t[\"autoconf\"]" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "\t[\"./configure\" \"-prefix\" \"%{prefix}%\"]"  >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "\t[make]"  >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "\t[make \"install\" \"MANDIR=%{man}%/man1\"]"  >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "]" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "depends: [" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "\t\"ocamlfind\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "\t\"zarith\"" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "\t\"ocamlgraph\" {>= \"1.8.2\"}" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "]" >> ../opam/$(PUBLIC_RELEASE_OPAM)/opam
+	echo "bin: [" >> ../opam/$(PUBLIC_RELEASE_OPAM)/files/alt-ergo.install
+	echo "\t\"alt-ergo.opt\" {\"alt-ergo\"}" >> ../opam/$(PUBLIC_RELEASE_OPAM)/files/alt-ergo.install
+	echo "]" >> ../opam/$(PUBLIC_RELEASE_OPAM)/files/alt-ergo.install
+
+# for altgr-ergo
+	mkdir -p ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/files
+	echo "Automatic theorem prover based on SMT technology and dedicated to program verification: Graphical interface" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/desc
+	echo "archive: \"http://alt-ergo.ocamlpro.com/http/$(PUBLIC_RELEASE)/$(PUBLIC_TARGZ)\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/url
+	echo "checksum: \"`md5sum ../public-release/$(PUBLIC_RELEASE)/$(PUBLIC_TARGZ) | cut -d" " -f1`\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/url
+	echo "opam-version: \"1\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "maintainer: \"alt-ergo@ocamlpro.com\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "license: \"CeCILL-C\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "homepage: \"http://alt-ergo.ocamlpro.com/\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "build: [" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t[\"autoconf\"]" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t[\"./configure\" \"-prefix\" \"%{prefix}%\"]"  >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t[make \"gui\"]"  >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t[make \"install-gui\" \"MANDIR=%{man}%/man1\"]"  >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "]" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "depends: [" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t\"ocamlfind\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t\"zarith\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t\"ocamlgraph\" {>= \"1.8.2\"}" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "\t\"lablgtk\"" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "]" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/opam
+	echo "bin: [" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/files/altgr-ergo.install
+	echo "\t\"altgr-ergo.opt\" {\"altgr-ergo\"}" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/files/altgr-ergo.install
+	echo "]" >> ../opam/$(PUBLIC_GUI_RELEASE_OPAM)/files/altgr-ergo.install
+	mv ../opam ../public-release
+
+
+# export
+########
+
+BINARY = $(EXPORTDIR)-$$OSTYPE
+BINARYTAR=$(BINARY).tar
+ARCH = $(shell uname -m)
+BINARYFILES = README INSTALL COPYING CeCILL-C doc/$(NAME).1
+
+# generic rules
+###############
+
+.SUFFIXES: .mli .ml .cmi .cmo .cmx .mll .mly .tex .dvi .ps .html
+
+.mli.cmi:
+	@@OCAMLWIZARD@ compile -w a $(BFLAGS) $< 
+	$(if $(QUIET),@echo 'Compiling $@' &&) $(OCAMLC) -c $(BFLAGS) $<
+
+.ml.cmo:
+	$(if $(QUIET),@echo 'Compiling $@' &&) $(OCAMLC) -c $(BFLAGS) $<
+	@@OCAMLWIZARD@ compile -w a $(BFLAGS) $< 
+
+.ml.o:
+	@@OCAMLWIZARD@ compile -w a $(BFLAGS) $< 
+	$(if $(QUIET),@echo 'Compiling $@' &&) $(OCAMLOPT) -c $(OFLAGS) $<
+
+.ml.cmx:
+	$(if $(QUIET),@echo 'Compiling $@' &&) $(OCAMLOPT) -c $(OFLAGS) $<
+	@@OCAMLWIZARD@ compile -w a $(BFLAGS) $< 
+
+.mll.ml:
+	$(if $(QUIET),@echo 'Compiling $<' &&) $(OCAMLLEX) $< > /dev/null
+
+.mly.ml:
+	$(if $(QUIET),@echo 'Compiling $<' &&) $(OCAMLYACC) -v $< 
+
+.mly.mli:
+	$(if $(QUIET),@echo 'Compiling $<' &&) $(OCAMLYACC) -v $< 
+
+
+# Makefile is rebuilt whenever Makefile.in or configure.in is modified
+######################################################################
+
+Makefile: Makefile.in config.status
+	./config.status
+
+config.status: configure
+	./config.status --recheck
+
+configure: configure.in
+	autoconf 
+
+# clean
+#######
+
+clean:
+	@for d in util structures theories instances sat preprocess parsing gui main; do \
+	dd=src/$$d; \
+	rm -f $$dd/*.cm[ioxtp] $$dd/*.cmti $$dd/*.o $$dd/*~ $$dd/*.annot $$dd/*.owz;\
+	rm -f $(GENERATED) $$dd/*.output META ; \
+	rm -f $(NAME).byte $(NAME).opt $(GUINAME).opt $(GUINAME).byte *~; \
+	done
+	@rm -f altErgo.cm* altErgo.o *.log archi.dot archi.pdf src/*~
+
+git-clean:
+	git clean -f -x -d .
+
+# depend
+########
+
+.depend depend:: $(GENERATED)
+	$(OCAMLDEP) -slash $(LOCAL_INC) src/util/*.ml* src/structures/*.ml* src/theories/*.ml* src/instances/*.ml* src/sat/*.ml* src/preprocess/*.ml* src/parsing/*.ml* src/gui/*.ml* src/main/*.ml* > .depend
+
+archi:$(NAME).byte $(GUINAME).byte
+	ocamldoc.opt $(INCLUDES) -dot -dot-reduce src/util/*.ml src/structures/*.ml src/theories/*.ml src/instances/*.ml src/sat/*.ml src/preprocess/*.ml src/parsing/*.ml src/gui/*.ml src/main/*.ml src/util/*.mli src/structures/*.mli src/theories/*.mli src/instances/*.mli src/sat/*.mli src/preprocess/*.mli src/parsing/*.mli src/gui/*.mli src/main/*.mli  -v
+	grep -v "}" ocamldoc.out > archi.dot
+	rm ocamldoc.out
+	cat extra/subgraphs.dot >> archi.dot
+	echo "}" >> archi.dot
+	dot -Tpdf archi.dot > archi.pdf
+	evince archi.pdf &
+
+rich-archi:opt gui
+	ocamldoc.opt $(INCLUDES) -dot -dot-reduce -dot-include-all src/util/*.ml src/structures/*.ml src/theories/*.ml src/instances/*.ml src/sat/*.ml src/preprocess/*.ml src/parsing/*.ml src/gui/*.ml src/main/*.ml src/util/*.mli src/structures/*.mli src/theories/*.mli src/instances/*.mli src/sat/*.mli src/preprocess/*.mli src/parsing/*.mli src/gui/*.mli src/main/*.mli  -v
+	grep -v "}" ocamldoc.out > archi.dot
+	rm ocamldoc.out
+	cat subgraphs.dot >> archi.dot
+	echo "}" >> archi.dot
+	dot -Tpdf archi.dot > archi.pdf
+	evince archi.pdf &
+
+poor-archi: .depend
+	cat .depend | ocamldot | dot -Tpdf > archi.pdf
+
+report: 
+	bisect-report -dump - -html report bisect*.out
+
+include .depend

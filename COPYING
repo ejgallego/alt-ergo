@@ -1,0 +1,25 @@
+(******************************************************************************)
+(*     The Alt-Ergo theorem prover                                            *)
+(*     Copyright (C) 2006-2013                                                *)
+(*     CNRS - INRIA - Universite Paris Sud                                    *)
+(*                                                                            *)
+(*     Sylvain Conchon                                                        *)
+(*     Evelyne Contejean                                                      *)
+(*                                                                            *)
+(*     Francois Bobot                                                         *)
+(*     Mohamed Iguernelala                                                    *)
+(*     Stephane Lescuyer                                                      *)
+(*     Alain Mebsout                                                          *)
+(*                                                                            *)
+(*   This file is distributed under the terms of the CeCILL-C licence         *)
+(******************************************************************************)
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the CeCILL-C FREE SOFTWARE LICENSE AGREEMENT.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the CeCILL-C FREE SOFTWARE LICENSE AGREEMENT version 1 for more
+details (enclosed in the file CeCILL-C).
