@@ -1,19 +1,3 @@
-(******************************************************************************)
-(*     The Alt-Ergo theorem prover                                            *)
-(*     Copyright (C) 2006-2013                                                *)
-(*     CNRS - INRIA - Universite Paris Sud                                    *)
-(*                                                                            *)
-(*     Sylvain Conchon                                                        *)
-(*     Evelyne Contejean                                                      *)
-(*                                                                            *)
-(*     Francois Bobot                                                         *)
-(*     Mohamed Iguernelala                                                    *)
-(*     Stephane Lescuyer                                                      *)
-(*     Alain Mebsout                                                          *)
-(*                                                                            *)
-(*   This file is distributed under the terms of the CeCILL-C licence         *)
-(******************************************************************************)
-
 Alt-Ergo is an automatic theorem prover.  Alt-Ergo's input is an arbitray
 first-order formula in the Why input format.
 
@@ -28,3 +12,10 @@ INSTALLATION
 ============
 
 See the enclosed file INSTALL.
+
+SUPPORT
+=======
+
+Bugs are first fixed in the professionnal version of Alt-Ergo
+(Alt-Ergo@OCamlPro), then public versions are released after a delay
+of about one year.
