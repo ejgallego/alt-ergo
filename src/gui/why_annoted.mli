@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -134,7 +140,7 @@ and aform =
   | AFnamed of Hstring.t * aform annoted
 
 type atyped_decl = 
-  | AAxiom of loc * string * inversion * aform
+  | AAxiom of loc * string * aform
   | ARewriting of loc * string * ((aterm rwt_rule) annoted) list
   | AGoal of loc * goal_sort * string * aform annoted
   | ALogic of loc * string list * plogic_type

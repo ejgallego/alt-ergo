@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -255,7 +261,7 @@ let analyze_formula s g f =
 let analyze_deps decl_list =
   List.fold_left
     (fun (g, gls) d -> match d.c with
-      | TAxiom (_, s, _, f) ->
+      | TAxiom (_, s, f) ->
 	analyze_formula s g f, gls
       | TPredicate_def (_, s, _, 
 			{c = TFforall {qf_form = ff; qf_bvars = lvars}}) 
@@ -264,11 +270,11 @@ let analyze_deps decl_list =
 		       {c = TFforall {qf_form = ff; qf_bvars = lvars}}) ->
 
 	let l, _ = List.split lvars in
-	   (*let s = Hstring.make s in*)
+	(*let s = Hstring.make s in*)
 	PInfo.init (Hstring.make s) l;
-	   (*symbs_in_formula (PInfo.add s) (PInfo.set s) ff;*)
+	(*symbs_in_formula (PInfo.add s) (PInfo.set s) ff;*)
 	analyze_formula s g ff, gls
-       (*	   (g, gls)*)
+      (*	   (g, gls)*)
 
       | TGoal (l, _, s, f) -> (g, (s,f)::gls)
       | _ -> (g,gls))
@@ -356,12 +362,12 @@ let split_and_prune depth decl_list =
 	    end;
 	  List.fold_right
 	    (fun f acc -> match f.c with
-	      | TAxiom(_, s',_, {c=TFforall {qf_bvars=_::_}}) -> 
+	      | TAxiom(_, s',{c=TFforall {qf_bvars=_::_}}) -> 
 		if SetS.mem s' df then (f,true)::acc else acc
-	      | TAxiom(loc,s',inv, f') -> 
+	      | TAxiom(loc,s',f') -> 
 		if SetS.mem s' df then (f,true)::acc
 		else 
-		  let f = { c = TAxiom(loc,s',inv,f'); annot = f.annot} in
+		  let f = { c = TAxiom(loc,s',f'); annot = f.annot} in
 		  (f,false)::acc
 	      | TGoal (_, _, s',_) -> if s = s' then (f,true)::acc else acc
 	      | _ -> (f,true)::acc) decl_list [])

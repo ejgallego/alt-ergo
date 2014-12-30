@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -463,8 +469,8 @@ let rec last_axiom_to_goal pos acc = function
   | [] -> 
     let true_lexpr = { pp_loc = pos; pp_desc = PPconst ConstTrue } in
     (Goal (pos, "", true_lexpr))::(List.rev acc)
-  | (Axiom (pos', n, inv, a))::r ->
-    (Axiom (pos', n, inv, a))::(Goal (pos, n, a))::(List.rev_append acc r)
+  | (Axiom (pos', n, a))::r ->
+    (Axiom (pos', n, a))::(Goal (pos, n, a))::(List.rev_append acc r)
   | d::r -> last_axiom_to_goal pos (d::acc) r
 
 let decls_of_command (acc, predicates) = function
@@ -504,7 +510,7 @@ let decls_of_command (acc, predicates) = function
       (Predicate_def (pos, (s, ""), spl, le))::acc, S.add s predicates
     else (Function_def (pos, (s, ""), spl, ppt, le))::acc, predicates
   | CAssert (pos, t) ->
-    (Axiom (pos, "", false, lexpr_of_term predicates t))::acc, predicates
+    (Axiom (pos, "", lexpr_of_term predicates t))::acc, predicates
   | CCheckSat pos -> 
     (*let true_lexpr = { pp_loc = pos; pp_desc = PPconst ConstTrue } in
       (Goal (pos, "check-sat", true_lexpr))::*)

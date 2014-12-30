@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -35,6 +41,6 @@ val prune_unused : env -> unit
 
 val add_instance : 
   ?register:bool -> env -> int -> aform -> string -> 
-  Why_ptree.inversion -> string list -> unit
+  string list -> unit
 
 val readd_trigger : ?register:bool -> env -> int -> string -> bool -> unit

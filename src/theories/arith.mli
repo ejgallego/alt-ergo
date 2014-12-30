@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -16,8 +22,20 @@
 
 module Type (X : Sig.X ): Polynome.T with type r = X.r
 
-module Make 
+module type EXTENDED_Polynome = sig
+  include Polynome.T
+  val extract : r -> t option
+  val embed : t -> r
+end
+
+module Shostak 
   (X : Sig.X)
-  (P : Polynome.T with type r = X.r)
-  (C : Sig.C with type t = P.t and type r = X.r) : Sig.THEORY 
+  (P : EXTENDED_Polynome with type r = X.r) : Sig.SHOSTAK
   with type r = X.r and type t = P.t
+
+module Relation
+  (X : Sig.X)
+  (Uf : Uf.S)
+  (P : EXTENDED_Polynome with type r = X.r) 
+  : Sig.RELATION 
+  with type r = X.r and type uf = Uf.t

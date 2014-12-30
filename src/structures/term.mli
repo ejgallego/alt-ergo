@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -16,12 +22,18 @@
 
 type t
 
-module Map : Map.S with type key = t
-module Set : Set.S with type elt = t
-
 type view = private {f: Symbols.t ; xs: t list; ty: Ty.t; depth: int; tag: int;}
 
+module Subst : sig
+  include Map.S with type key = Symbols.t and type 'a t = 'a Symbols.Map.t
+  val print :
+    (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
+end
+
 type subst = t Subst.t * Ty.subst
+
+module Map : Map.S with type key = t
+module Set : Set.S with type elt = t
 
 val view : t -> view
 val make : Symbols.t -> t list -> Ty.t -> t
@@ -69,3 +81,6 @@ val print_tagged_classes : Format.formatter -> Set.t list -> unit
 val dummy : t 
 
 val subterms : Set.t -> t -> Set.t
+val type_info : t -> Ty.t
+val top : unit -> t
+val bot : unit -> t

@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -20,7 +26,15 @@ open Hashcons
 module Sy = Symbols
 
 type view = {f: Sy.t ; xs: t list; ty: Ty.t; depth: int; tag: int;}
+
 and t = view
+
+module Subst = struct
+  include Symbols.Map 
+
+  let print pr_elt fmt sbt =
+    iter (fun k v -> fprintf fmt "%a -> %a  " Sy.print k pr_elt v) sbt
+end
 
 type subst = t Subst.t * Ty.subst
     
@@ -261,3 +275,6 @@ let print_tagged_classes fmt =
     if cl <> [] then
       fprintf fmt "\n{ %a }" (print_list_sep " , ") cl)
 
+let type_info t = t.ty
+let top () = vrai
+let bot () = faux

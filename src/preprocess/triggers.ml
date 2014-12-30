@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -13,7 +19,6 @@
 (*                                                                            *)
 (*   This file is distributed under the terms of the CeCILL-C licence         *)
 (******************************************************************************)
-
 
 open Options
 open Format
@@ -611,7 +616,7 @@ let make_triggers gopt vterm vtype trs =
 	  else [] (*multi_triggers vars trs*)
 	else f trs_nv 
       in 
-      if glouton () then ll@(multi_triggers gopt vterm vtype trs) else ll
+      if greedy () then ll@(multi_triggers gopt vterm vtype trs) else ll
 
 let check_triggers trs (bv, vty) =
   if trs = [] then 
@@ -753,7 +758,7 @@ let rec make_rec keep_triggers pol gopt vterm vtype f =
     | TFlet (up, v, t, f) ->
       let f, trs = make_rec keep_triggers pol gopt vterm vtype f in 
       let trs = STRS.union trs (potential_triggers (vterm, vtype) [t]) in
-	(* XXX correct for terms *)
+      (* XXX correct for terms *)
       TFlet (up, v, t, f), trs
 
     | TFnamed(lbl, f) -> 

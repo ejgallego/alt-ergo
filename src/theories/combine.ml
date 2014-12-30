@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -17,6 +23,8 @@
 open Format
 open Options
 open Sig
+
+(*** Combination module of Shostak theories ***)
 
 module rec CX : sig
   include Sig.X
@@ -47,19 +55,19 @@ struct
     | X3    of X3.t 
     | X4    of X4.t 
     | X5    of X5.t 
-    
+        
   let extract1 = function X1 r   -> Some r | _ -> None
   let extract2 = function X2 r   -> Some r | _ -> None
   let extract3 = function X3 r   -> Some r | _ -> None
   let extract4 = function X4 r   -> Some r | _ -> None
   let extract5 = function X5 r   -> Some r | _ -> None
-  
+    
   let embed1 x = X1 x
   let embed2 x = X2 x
   let embed3 x = X3 x
   let embed4 x = X4 x  
   let embed5 x = X5 x
-	
+    
   let is_an_eq a = 
     match Literal.LT.view a with Literal.Builtin _ -> false | _ -> true
 
@@ -74,7 +82,7 @@ struct
       | Ac x -> AC.type_info x
     in 
     ty = Ty.Tint
-      
+        
   let type_info = function
     | X1 t   -> X1.type_info t
     | X2 t   -> X2.type_info t
@@ -93,7 +101,7 @@ struct
     | X3 _    -> -5
     | X4 _    -> -6
     | X5 _    -> -7
-          
+      
   let compare_tag a b = theory_num a - theory_num b
 
   let compare a b = 
@@ -106,7 +114,7 @@ struct
       | Term x  , Term y  -> Term.compare x y
       | Ac x    , Ac    y -> AC.compare x y
       | _                 -> compare_tag a b
-    
+        
   let equal a b = compare a b = 0
 
   let hash = function
@@ -120,8 +128,8 @@ struct
 
   module MR = Map.Make(struct type t = r let compare = compare end)
   module SX = Set.Make(struct type t = r let compare = CX.compare end)
-  
-         
+    
+    
   let leaves r = 
     match r with 
       | X1 t -> X1.leaves t 
@@ -133,20 +141,23 @@ struct
       | Term _ -> [r]
 
   let ac_extract = function
-      Ac t   -> Some t
+  Ac t   -> Some t
     | _ -> None
 
   let ac_embed ({Sig.l = l} as t) = 
     match l with
       | []    -> 
-	  assert false
+	assert false
       | [x, 1] -> x
       | l     -> 
-	  let sort = List.fast_sort (fun (x,n) (y,m) -> compare x y) in
-	  Ac { t with Sig.l = List.rev (sort l) }
+	let sort = List.fast_sort (fun (x,n) (y,m) -> compare x y) in
+	Ac { t with Sig.l = List.rev (sort l) }
 
   let term_embed t = Term t
-
+    
+  let top () = term_embed Term.vrai
+  let bot () = term_embed Term.faux
+    
   let term_extract r = 
     match r with 
       | X1 _ -> X1.term_extract r 
@@ -154,8 +165,8 @@ struct
       | X3 _ -> X3.term_extract r 
       | X4 _ -> X4.term_extract r 
       | X5 _ -> X5.term_extract r 
-      | Ac _ -> None (* SYLVAIN : TODO *)
-      | Term t -> Some t
+      | Ac _ -> None, false (* SYLVAIN : TODO *)
+      | Term t -> Some t, true
 
   let subst p v r = 
     if equal p v then r 
@@ -186,7 +197,7 @@ struct
       | false , false , false, false, false, true  -> AC.make t
       | false , false , false, false, false, false -> Term t, []
       | _ -> assert false
-	  
+	
   let fully_interpreted sb =
     match 
       X1.is_mine_symb sb,
@@ -279,11 +290,11 @@ struct
     let solve_one a b =
       if debug_combine () then 
         fprintf fmt "solve one %a = %a@." CX.print a CX.print b
-      
+          
     let debug_abstract_selectors a =
       if debug_combine () then 
         fprintf fmt "abstract selectors of %a@." CX.print a
-      
+          
     let assert_have_mem_types tya tyb =
       assert (
         not (Options.enable_assertions()) ||
@@ -332,7 +343,7 @@ struct
     a', b', acc
       
   let apply_subst r l = List.fold_left (fun r (p,v) -> CX.subst p v r) r l
-      
+    
   let triangular_down sbs = 
     List.fold_right (fun (p,v) nsbs -> (p, apply_subst v nsbs) :: nsbs) sbs []
 
@@ -396,146 +407,219 @@ struct
     let a', b', acc = abstract_equality a b in
     solve_abstracted a b a' b' acc
       
-  module Rel =
-  struct
-    type elt = r
-    type r = elt
+end
 
-    type t = { 
-      r1: X1.Rel.t; 
-      r2: X2.Rel.t; 
-      r3: X3.Rel.t;  
-      r4: X4.Rel.t; 
-      r5: X5.Rel.t; 
+and TX1 : Polynome.T 
+ with type r = CX.r =
+  Arith.Type(CX)
+    
+and X1 : Sig.SHOSTAK 
+ with type t = TX1.t
+ and type r = CX.r =
+        Arith.Shostak
+          (CX)
+          (struct
+            include TX1
+            let extract = CX.extract1
+            let embed =  CX.embed1
+           end)
+          
+and X2 : Sig.SHOSTAK 
+ with type r = CX.r 
+ and type t = CX.r Records.abstract =
+        Records.Shostak
+          (struct
+            include CX
+            let extract = extract2
+            let embed = embed2
+           end)
+                              
+and X3 : Sig.SHOSTAK
+ with type r = CX.r 
+ and type t = CX.r Bitv.abstract =
+        Bitv.Shostak
+          (struct
+            include CX
+            let extract = extract3
+            let embed = embed3
+           end)
+                              
+
+and X4 : Sig.SHOSTAK 
+ with type r = CX.r 
+ and type t = CX.r Arrays.abstract =
+        Arrays.Shostak
+          (struct
+            include CX
+            let extract = extract4
+            let embed = embed4
+           end)
+          
+and X5 : Sig.SHOSTAK 
+ with type r = CX.r 
+ and type t = CX.r Sum.abstract =
+        Sum.Shostak
+          (struct
+            include CX
+            let extract = extract5
+            let embed = embed5
+           end)
+
+(* Its signature is not Sig.SHOSTAK because it does not provide a solver *)
+and AC : Ac.S 
+ with type r = CX.r =
+  Ac.Make(CX)
+  
+          
+(*** Instantiation of Uf.Make and Use.Make with CX ***)
+
+module Uf : Uf.S with type r = CX.r = Uf.Make(CX)
+module Use = Use.Make(CX)
+
+(*** Combination module of Relations ***)
+
+module Rel1 : Sig.RELATION 
+  with type r = CX.r and type uf = Uf.t =
+         Fm.Relation (CX)(Uf)
+           (struct
+             include TX1
+             let extract = CX.extract1
+             let embed =  CX.embed1
+            end)
+           
+module Rel2 : Sig.RELATION 
+  with type r = CX.r and type uf = Uf.t =
+         Records.Relation
+           (struct
+             include CX
+             let extract = extract2
+             let embed = embed2
+            end)(Uf)
+
+
+module Rel3 : Sig.RELATION 
+  with type r = CX.r and type uf = Uf.t =
+         Bitv.Relation
+           (struct
+             include CX
+             let extract = extract3
+             let embed = embed3
+            end)(Uf)
+
+
+module Rel4 : Sig.RELATION 
+  with type r = CX.r and type uf = Uf.t =
+         Arrays.Relation
+           (struct
+             include CX
+             let extract = extract4
+             let embed = embed4
+            end)(Uf)
+
+
+module Rel5 : Sig.RELATION 
+  with type r = CX.r and type uf = Uf.t =
+         Sum.Relation
+           (struct
+             include CX
+             let extract = extract5
+             let embed = embed5
+            end)(Uf)
+
+
+module Relation : Sig.RELATION with type r = CX.r and type uf = Uf.t = struct
+  type r = CX.r
+  type uf = Uf.t
+
+  type t = { 
+    r1: Rel1.t; 
+    r2: Rel2.t; 
+    r3: Rel3.t;  
+    r4: Rel4.t; 
+    r5: Rel5.t; 
+  }
+      
+  let empty classes = {
+    r1=Rel1.empty classes; 
+    r2=Rel2.empty classes; 
+    r3=Rel3.empty classes;
+    r4=Rel4.empty classes;
+    r5=Rel5.empty classes;
+  }
+    
+  let assume env uf sa =
+    Options.exec_thread_yield ();
+    let env1, { assume = a1; remove = rm1} = 
+      Rel1.assume env.r1 uf sa in
+    let env2, { assume = a2; remove = rm2} = 
+      Rel2.assume env.r2 uf sa in
+    let env3, { assume = a3; remove = rm3} = 
+      Rel3.assume env.r3 uf sa in
+    let env4, { assume = a4; remove = rm4} = 
+      Rel4.assume env.r4 uf sa in
+    let env5, { assume = a5; remove = rm5} = 
+      Rel5.assume env.r5 uf sa in
+    {r1=env1; r2=env2; r3=env3; r4=env4; r5=env5}, 
+    { assume = a1@a2@a3@a4@a5;
+      remove = rm1@rm2@rm3@rm4@rm5;}
+      
+  let query env uf a = 
+    Options.exec_thread_yield ();
+    match Rel1.query env.r1 uf a with
+      | Yes _ as ans -> ans
+      | No -> 
+	match Rel2.query env.r2 uf a with
+	  | Yes _ as ans -> ans
+	  | No ->
+	    match 
+              Rel3.query env.r3 uf a with
+		| Yes _ as ans -> ans
+		| No -> 
+		  match
+                    Rel4.query
+                      env.r4 uf a with
+		        | Yes _ as ans -> ans
+		        | No -> 
+                          Rel5.query
+                            env.r5 uf a
+		            
+  let case_split env = 
+    Options.exec_thread_yield ();
+    let seq1 = Rel1.case_split env.r1 in
+    let seq2 = Rel2.case_split env.r2 in
+    let seq3 = Rel3.case_split env.r3 in
+    let seq4 = Rel4.case_split env.r4 in
+    let seq5 = Rel5.case_split env.r5 in
+    seq1 @ seq2 @ seq3 @ seq4 @ seq5
+
+  let add env r =
+    Options.exec_thread_yield ();
+    {r1=Rel1.add env.r1 r;
+     r2=Rel2.add env.r2 r;
+     r3=Rel3.add env.r3 r;
+     r4=Rel4.add env.r4 r;
+     r5=Rel5.add env.r5 r;
     }
-	
-    let empty classes = {
-      r1=X1.Rel.empty classes; 
-      r2=X2.Rel.empty classes; 
-      r3=X3.Rel.empty classes;
-      r4=X4.Rel.empty classes;
-      r5=X5.Rel.empty classes;
-    }
-	
-    let assume env sa ~are_eq ~are_neq ~class_of ~classes =
-      Options.exec_thread_yield ();
-      let env1, { assume = a1; remove = rm1} = 
-	X1.Rel.assume env.r1 sa ~are_eq ~are_neq ~class_of ~classes in
-      let env2, { assume = a2; remove = rm2} = 
-	X2.Rel.assume env.r2 sa ~are_eq ~are_neq ~class_of ~classes in
-      let env3, { assume = a3; remove = rm3} = 
-	X3.Rel.assume env.r3 sa ~are_eq ~are_neq ~class_of ~classes in
-      let env4, { assume = a4; remove = rm4} = 
-	X4.Rel.assume env.r4 sa ~are_eq ~are_neq ~class_of ~classes in
-      let env5, { assume = a5; remove = rm5} = 
-	X5.Rel.assume env.r5 sa ~are_eq ~are_neq ~class_of ~classes in
-      {r1=env1; r2=env2; r3=env3; r4=env4; r5=env5}, 
-      { assume = a1@a2@a3@a4@a5;
-	remove = rm1@rm2@rm3@rm4@rm5;}
-	
-    let query env a ~are_eq ~are_neq ~class_of ~classes = 
-      Options.exec_thread_yield ();
-      match X1.Rel.query env.r1 a ~are_eq ~are_neq ~class_of ~classes with
-	| Yes _ as ans -> ans
-	| No -> 
-	  match X2.Rel.query env.r2 a ~are_eq ~are_neq ~class_of ~classes with
-	    | Yes _ as ans -> ans
-	    | No ->
-	      match 
-                X3.Rel.query env.r3 a ~are_eq ~are_neq ~class_of ~classes with
-		  | Yes _ as ans -> ans
-		  | No -> 
-		    match
-                      X4.Rel.query
-                        env.r4 a ~are_eq ~are_neq ~class_of ~classes  with
-		      | Yes _ as ans -> ans
-		      | No -> 
-                        X5.Rel.query
-                          env.r5 a ~are_eq ~are_neq ~class_of ~classes
-		      
-    let case_split env = 
-      Options.exec_thread_yield ();
-      let seq1 = X1.Rel.case_split env.r1 in
-      let seq2 = X2.Rel.case_split env.r2 in
-      let seq3 = X3.Rel.case_split env.r3 in
-      let seq4 = X4.Rel.case_split env.r4 in
-      let seq5 = X5.Rel.case_split env.r5 in
-      seq1 @ seq2 @ seq3 @ seq4 @ seq5
 
-    let add env r =
-      Options.exec_thread_yield ();
-      {r1=X1.Rel.add env.r1 r;
-       r2=X2.Rel.add env.r2 r;
-       r3=X3.Rel.add env.r3 r;
-       r4=X4.Rel.add env.r4 r;
-       r5=X5.Rel.add env.r5 r;
-      }
-
-    let print_model fmt env rs =
-      X1.Rel.print_model fmt env.r1 rs;
-      X2.Rel.print_model fmt env.r2 rs;
-      X3.Rel.print_model fmt env.r3 rs;
-      X4.Rel.print_model fmt env.r4 rs;
-      X5.Rel.print_model fmt env.r5 rs
+  let print_model fmt env rs =
+    Rel1.print_model fmt env.r1 rs;
+    Rel2.print_model fmt env.r2 rs;
+    Rel3.print_model fmt env.r3 rs;
+    Rel4.print_model fmt env.r4 rs;
+    Rel5.print_model fmt env.r5 rs
 
 
-    let new_terms env = 
-      let t1 = X1.Rel.new_terms env.r1 in
-      let t2 = X2.Rel.new_terms env.r2 in
-      let t3 = X3.Rel.new_terms env.r3 in
-      let t4 = X4.Rel.new_terms env.r4 in
-      let t5 = X5.Rel.new_terms env.r5 in
-      Term.Set.union t1
-        (Term.Set.union t2
-           (Term.Set.union t3 
-              (Term.Set.union t4 t5)))
-
-  end
+  let new_terms env = 
+    let t1 = Rel1.new_terms env.r1 in
+    let t2 = Rel2.new_terms env.r2 in
+    let t3 = Rel3.new_terms env.r3 in
+    let t4 = Rel4.new_terms env.r4 in
+    let t5 = Rel5.new_terms env.r5 in
+    Term.Set.union t1
+      (Term.Set.union t2
+         (Term.Set.union t3 
+            (Term.Set.union t4 t5)))
 
 end
 
-and TX1 : Polynome.T with type r = CX.r = Arith.Type(CX)
-
-and X1 : Sig.THEORY  with type t = TX1.t and type r = CX.r =
-  Arith.Make(CX)(TX1)
-    (struct
-       type t = TX1.t
-       type r = CX.r
-       let extract = CX.extract1
-       let embed =  CX.embed1
-     end)
-
-and X2 : Sig.THEORY with type r = CX.r and type t = CX.r Records.abstract =
-  Records.Make
-    (struct
-       include CX
-       let extract = extract2
-       let embed = embed2
-     end)
-
-and X3 : Sig.THEORY with type r = CX.r and type t = CX.r Bitv.abstract =
-  Bitv.Make
-    (struct
-       include CX
-       let extract = extract3
-       let embed = embed3
-     end)
-
-and X4 : Sig.THEORY with type r = CX.r and type t = CX.r Arrays.abstract =
-  Arrays.Make
-    (struct
-       include CX
-       let extract = extract4
-       let embed = embed4
-     end)
-
- (* Its signature is not Sig.THEORY because it does not provide a solver *)
-and AC : Ac.S with type r = CX.r = Ac.Make(CX)
-
-and X5 : Sig.THEORY with type r = CX.r and type t = CX.r Sum.abstract =
-  Sum.Make
-    (struct
-       include CX
-       let extract = extract5
-       let embed = embed5
-     end)
+module Shostak = CX

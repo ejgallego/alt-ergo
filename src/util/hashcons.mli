@@ -1,20 +1,3 @@
-(******************************************************************************)
-(*     The Alt-Ergo theorem prover                                            *)
-(*     Copyright (C) 2006-2013                                                *)
-(*     CNRS - INRIA - Universite Paris Sud                                    *)
-(*                                                                            *)
-(*     Sylvain Conchon                                                        *)
-(*     Evelyne Contejean                                                      *)
-(*                                                                            *)
-(*     Francois Bobot                                                         *)
-(*     Mohamed Iguernelala                                                    *)
-(*     Stephane Lescuyer                                                      *)
-(*     Alain Mebsout                                                          *)
-(*                                                                            *)
-(*   This file is distributed under the terms of the CeCILL-C licence         *)
-(******************************************************************************)
-
-
 (**************************************************************************)
 (*                                                                        *)
 (*  Copyright (C) 2010-                                                   *)
@@ -62,20 +45,20 @@ sig
   type t
 
   val hashcons : t -> t
-    (** [hashcons n f] hash-cons the value [n] using function [f] i.e. returns
-	any existing value in the table equal to [n], if any;
-	otherwise, creates a new value with function [f], stores it
-	in the table and returns it. Function [f] is passed
-	the node [n] as first argument and the unique id as second argument.
-    *)
+  (** [hashcons n f] hash-cons the value [n] using function [f] i.e. returns
+      any existing value in the table equal to [n], if any;
+      otherwise, creates a new value with function [f], stores it
+      in the table and returns it. Function [f] is passed
+      the node [n] as first argument and the unique id as second argument.
+  *)
 
   val iter : (t -> unit) -> unit
-    (** [iter f] iterates [f] over all elements of the table . *)
+  (** [iter f] iterates [f] over all elements of the table . *)
   val stats : unit -> int * int * int * int * int * int
-  (** Return statistics on the table.  The numbers are, in order:
-      table length, number of entries, sum of bucket lengths,
-      smallest bucket length, median bucket length, biggest
-      bucket length. *)
+(** Return statistics on the table.  The numbers are, in order:
+    table length, number of entries, sum of bucket lengths,
+    smallest bucket length, median bucket length, biggest
+    bucket length. *)
 end
 
 module Make(H : HashedType) : (S with type t = H.t)
@@ -107,20 +90,20 @@ sig
   type key
 
   val hashcons : key -> key hash_consed
-    (** [hashcons n f] hash-cons the value [n] using function [f] i.e. returns
-	any existing value in the table equal to [n], if any;
-	otherwise, creates a new value with function [f], stores it
-	in the table and returns it. Function [f] is passed
-	the node [n] as first argument and the unique id as second argument.
-    *)
+  (** [hashcons n f] hash-cons the value [n] using function [f] i.e. returns
+      any existing value in the table equal to [n], if any;
+      otherwise, creates a new value with function [f], stores it
+      in the table and returns it. Function [f] is passed
+      the node [n] as first argument and the unique id as second argument.
+  *)
 
   val iter : (key hash_consed -> unit) -> unit
-    (** [iter f] iterates [f] over all elements of the table . *)
+  (** [iter f] iterates [f] over all elements of the table . *)
   val stats : unit -> int * int * int * int * int * int
-  (** Return statistics on the table.  The numbers are, in order:
-      table length, number of entries, sum of bucket lengths,
-      smallest bucket length, median bucket length, biggest
-      bucket length. *)
+(** Return statistics on the table.  The numbers are, in order:
+    table length, number of entries, sum of bucket lengths,
+    smallest bucket length, median bucket length, biggest
+    bucket length. *)
 end
 
 module Make_consed(H : HashedType_consed) : (S_consed with type key = H.t)

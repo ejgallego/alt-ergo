@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -33,7 +39,7 @@ module type ALIEN = sig
   val extract : r -> (r abstract) option
 end
 
-module Make (X : ALIEN) = struct 
+module Shostak (X : ALIEN) = struct 
 
   module XS = Set.Make(struct type t = X.r let compare = X.compare end)
 
@@ -145,7 +151,7 @@ module Make (X : ALIEN) = struct
 		let r, ctx = make_rec x ctx in 
                 let tyr = type_info r in
 		let dlb = T.make (Symbols.Op (Symbols.Access lb)) [t] tyr in
-		let c = Literal.LT.make (Literal.Eq (dlb, dlb)) in
+		let c = Literal.LT.mk_eq dlb x in
 		(lb, r)::l, c::ctx
 	      ) 
 	      xs lbs ([], ctx)
@@ -304,22 +310,25 @@ module Make (X : ALIEN) = struct
     match X.extract r with
       | Some v -> begin match v with
 	  | Record (lbs, ty) -> 
-	    begin try
-		    let lbs = 
-		      List.map 
-		        (fun (_, r) -> 
-		          match term_extract (is_mine r) with 
-			    | None -> raise Not_found
-			    | Some t -> t) lbs in
-		    Some (T.make (Symbols.Op Symbols.Record) lbs ty)
-	      with Not_found -> None
+	    begin 
+              try
+		let lbs = 
+		  List.map 
+		    (fun (_, r) -> 
+		      match term_extract (is_mine r) with 
+			| None, _ -> raise Not_found
+			| Some t, _ -> t)
+                    lbs
+                in
+		Some (T.make (Symbols.Op Symbols.Record) lbs ty), false
+	      with Not_found -> None, false
 	    end
 	  | Access (a, r, ty) ->
 	    begin
 	      match X.term_extract (is_mine r) with
-		| None -> None
-		| Some t -> 
-		  Some (T.make (Symbols.Op (Symbols.Access a)) [t] ty)
+		| None, _ -> None, false
+		| Some t, _ -> 
+		  Some (T.make (Symbols.Op (Symbols.Access a)) [t] ty), false
 	    end
 	  | Other (r, _) -> X.term_extract r
       end
@@ -387,18 +396,20 @@ module Make (X : ALIEN) = struct
 	raise e
     else solve r1 r2 pb
 
-  module Rel =
-  struct
-    type r = X.r
-    type t = unit
-    exception Inconsistent    
-    let empty _ = ()
-    let assume _ _ ~are_eq ~are_neq ~class_of ~classes = 
-      (), { assume = []; remove = []}
-    let query _ _ ~are_eq ~are_neq ~class_of ~classes = Sig.No
-    let case_split env = []
-    let add env _ = env
-    let print_model _ _ _ = ()
-    let new_terms env = T.Set.empty
-  end
+end
+
+
+module Relation (X : ALIEN) (Uf : Uf.S) = struct
+  type r = X.r
+  type uf = Uf.t
+  type t = unit
+  exception Inconsistent    
+  let empty _ = ()
+  let assume _ _ _ = 
+    (), { assume = []; remove = []}
+  let query _ _ _ = Sig.No
+  let case_split env = []
+  let add env _ = env
+  let print_model _ _ _ = ()
+  let new_terms env = T.Set.empty
 end

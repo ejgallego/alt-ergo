@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -90,17 +96,17 @@ module Q1 = struct
 
 
 (********
-  comparer avec l'implem de Alain de of_float
-  let ratio_of_float f =
-    Ratio.ratio_of_string (string_of_float f)
-      
-  let num_of_float f = num_of_ratio (ratio_of_float f)
+         comparer avec l'implem de Alain de of_float
+         let ratio_of_float f =
+         Ratio.ratio_of_string (string_of_float f)
+         
+         let num_of_float f = num_of_ratio (ratio_of_float f)
 
-  let of_float x = 
-    let res = of_float x in
-    let z = num_of_float x in
-    assert (res =/ z);
-    res
+         let of_float x = 
+         let res = of_float x in
+         let z = num_of_float x in
+         assert (res =/ z);
+         res
 ********)
 end
 

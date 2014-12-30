@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -43,6 +49,16 @@ and view =
   | Skolem of skolem  (* lazy substitution *)
   | Let of llet (* a binding of a term *)
 
+
+type gformula = { 
+  f: t; 
+  age: int; 
+  lem: t option; 
+  from_terms : Term.t list;
+  mf: bool;
+  gf: bool;
+}
+
 val mk_not : t -> t
 val mk_and : t -> t -> int -> t
 val mk_or : t -> t -> int -> t
@@ -75,6 +91,8 @@ val apply_subst : Term.subst -> t -> t
 val compare : t -> t -> int
 val equal : t -> t -> bool
 val hash : t -> int
+val vrai : t
+val faux : t
 
 module Set : Set.S with type elt = t
 module Map : Map.S with type key = t

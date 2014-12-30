@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -52,6 +58,15 @@ and iview = { pos : view ; neg : view ; size : int; tag : int}
 
 and t = iview * int
     
+type gformula = { 
+  f: t; 
+  age: int; 
+  lem: t option; 
+  from_terms : Term.t list;
+  mf: bool;
+  gf: bool;
+}
+
 module View = struct
   type t = iview
       
@@ -261,10 +276,13 @@ let hash (f, _) = f.tag
 (* smart constructors *)
 let make pos neg size id =
   (H.hashcons {pos = pos; neg = neg; size = size; tag = -1 (* dumb *)}, id)
-
+    
 let mk_not (f,id) =
   let f = iview f in
   make f.neg f.pos f.size id
+
+let vrai = make (Literal Literal.LT.vrai) (Literal Literal.LT.faux) 1 0
+let faux = mk_not vrai
 
 let mk_skolem_subst bv v = 
   T.Set.fold 
@@ -313,15 +331,29 @@ let mk_let _up bv t f id =
     (size f) id
     
 let mk_and f1 f2 id =
-  if equal f1 f2 then f1 else
-    let size = size f1 + size f2 in
-    make (Unit(f1,f2)) (Clause(mk_not f1,mk_not f2)) size id
-      
+  if equal f1 (mk_not f2) then faux
+  else
+    if equal f1 f2 then f1
+    else if equal f1 vrai then f2
+    else if equal f2 vrai then f1
+    else if (equal f1 faux) || (equal f2 faux) then faux
+    else
+      let f1, f2 = if compare f1 f2 < 0 then f1, f2 else f2, f1 in
+      let size = size f1 + size f2 in
+      make (Unit(f1,f2)) (Clause(mk_not f1,mk_not f2)) size id
+        
 let mk_or f1 f2 id = 
-  if equal f1 f2 then f1 else
-    let size = size f1 + size f2 in
-    make (Clause(f1,f2)) (Unit(mk_not f1,mk_not f2)) size id
-      
+  if equal f1 (mk_not f2) then vrai
+  else
+    if equal f1 f2 then f1 
+    else if equal f1 faux then f2
+    else if equal f2 faux then f1
+    else if equal f1 vrai || equal f2 vrai then vrai
+    else
+      let f1, f2 = if compare f1 f2 < 0 then f1, f2 else f2, f1 in
+      let size = size f1 + size f2 in
+      make (Clause(f1,f2)) (Unit(mk_not f1,mk_not f2)) size id
+        
 let mk_imp f1 f2 id = 
   let size = size f1 + size f2 in
   make (Clause(mk_not f1,f2)) (Unit(f1,mk_not f2)) size id
@@ -342,15 +374,15 @@ let translate_eq_to_iff s t =
   
 let mk_lit a id = match Literal.LT.view a with
   | Literal.Eq(s,t) when translate_eq_to_iff s t ->
-    let a1 = Literal.LT.mk_pred s in
-    let a2 = Literal.LT.mk_pred t in
+    let a1 = Literal.LT.mk_pred s false in
+    let a2 = Literal.LT.mk_pred t false in
     let f1 = make (Literal a1) (Literal (Literal.LT.neg a1)) 1 id in
     let f2 = make (Literal a2) (Literal (Literal.LT.neg a2)) 1 id in
     mk_iff f1 f2 id
 
   | Literal.Distinct(false,[s;t]) when translate_eq_to_iff s t ->
-    let a1 = Literal.LT.mk_pred s in
-    let a2 = Literal.LT.mk_pred t in
+    let a1 = Literal.LT.mk_pred s false in
+    let a2 = Literal.LT.mk_pred t false in
     let f1 = make (Literal a1) (Literal (Literal.LT.neg a1)) 1 id in
     let f2 = make (Literal a2) (Literal (Literal.LT.neg a2)) 1 id in
     mk_not (mk_iff f1 f2 id)
@@ -358,14 +390,18 @@ let mk_lit a id = match Literal.LT.view a with
   | _ -> make (Literal a) (Literal (Literal.LT.neg a)) 1 id
 
 let mk_if t f2 f3 id = 
-  let lit = mk_lit (Literal.LT.mk_pred t) id in
+  let lit = mk_lit (Literal.LT.mk_pred t false) id in
   mk_or (mk_and lit f2 id) (mk_and (mk_not lit) f3 id) id
 
 (* this function should only be applied with ground substitutions *)
 let rec apply_subst subst (f, id) =
   let {pos=p;neg=n;size=s} = iview f in
   let sp, sn = iapply_subst subst p n in 
-  make sp sn s id
+  match sp with
+    | Literal a      -> mk_lit a id     (* this may simplifies the result *)
+    | Unit (f1, f2)  -> mk_and f1 f2 id (* this may simplifies the result *)
+    | Clause (f1,f2) -> mk_or f1 f2 id  (* this may simplifies the result *)
+    | _              -> make sp sn s id
 
 and iapply_subst ((s_t,s_ty) as subst) p n = match p, n with
   | Literal a, Literal _ ->
@@ -484,7 +520,9 @@ let terms =
     | Skolem{sko_subst = (s,_); sko_f = f} -> terms acc f
     | Let {let_term=t; let_f=lf} -> 
       let st = 
-	T.Set.filter (fun t->Sy.Set.is_empty (T.vars_of t)) 
+	T.Set.filter 
+          (fun t->
+            Sy.Set.is_empty (T.vars_of t) && Ty.Svty.is_empty (T.vty_of t)) 
 	  (Term.subterms Term.Set.empty t) 
       in
       terms (T.Set.union st acc) lf

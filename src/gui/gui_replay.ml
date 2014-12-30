@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -45,10 +51,10 @@ let replay_addinstance id aname entries env =
     | AD (ad, _) ->
       begin
 	match ad.c with
-	  | AAxiom (_, aname, inv, af) -> 
-	    add_instance ~register:false env id af aname inv entries
+	  | AAxiom (_, aname, af) -> 
+	    add_instance ~register:false env id af aname entries
 	  | APredicate_def (_, aname,_ , af) ->
-	    add_instance ~register:false env id af aname false entries
+	    add_instance ~register:false env id af aname entries
 	  | _ -> assert false
       end
     | _ -> assert false

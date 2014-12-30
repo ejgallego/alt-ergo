@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -17,9 +23,7 @@
 open Options
 open Format
 
-module L = List
 module HS = Hstring
-module F = Format
 module Sy = Symbols
 
 module type S = sig
@@ -46,7 +50,7 @@ module type S = sig
   val type_info : t -> Ty.t
 
   (* prints the AC semantic value *)
-  val print : F.formatter -> t -> unit
+  val print : formatter -> t -> unit
     
   (* returns the leaves of the given AC semantic value *)
   val leaves : t -> r list
@@ -79,25 +83,25 @@ module Make (X : Sig.X) = struct
     let rec pr_elt sep fmt (e,n) = 
       assert (n >=0);
       if n = 0 then ()
-      else F.fprintf fmt "%s%a%a" sep X.print e (pr_elt sep) (e,n-1)
+      else fprintf fmt "%s%a%a" sep X.print e (pr_elt sep) (e,n-1)
 
     let pr_xs sep fmt = function
       | [] -> assert false
       | (p,n)::l  -> 
-        F.fprintf fmt "%a" X.print p; 
-        L.iter (F.fprintf fmt "%a" (pr_elt sep))((p,n-1)::l)
+        fprintf fmt "%a" X.print p; 
+        List.iter (fprintf fmt "%a" (pr_elt sep))((p,n-1)::l)
 	  
     let print fmt {h=h ; l=l} = 
-      if Sy.equal h (Sy.Op Sy.Mult) && Options.term_like_pp () then
-        F.fprintf fmt "%a" (pr_xs "'*'") l
+      if Sy.equal h (Sy.Op Sy.Mult) && term_like_pp () then
+        fprintf fmt "%a" (pr_xs "'*'") l
       else
-        F.fprintf fmt "%a(%a)" Sy.print h (pr_xs ",") l
+        fprintf fmt "%a(%a)" Sy.print h (pr_xs ",") l
 
     let assert_compare a b c1 c2 = 
       assert (
         if not (c1 = 0 && c2 = 0 ||
-          c1 < 0 && c2 > 0 ||
-          c1 > 0 && c2 < 0) then begin
+            c1 < 0 && c2 > 0 ||
+            c1 > 0 && c2 < 0) then begin
           fprintf fmt "Ac.compare:@.%a vs @.%a@. = %d@.@." print a print b c1;
           fprintf fmt "But@.";
           fprintf fmt "Ac.compare:@.%a vs @.%a@. = %d@.@." print b print a c2;
@@ -108,7 +112,7 @@ module Make (X : Sig.X) = struct
 
     let subst p v tm = 
       if debug_ac () then
-        F.fprintf fmt "[ac] subst %a by %a in %a@." 
+        fprintf fmt "[ac] subst %a by %a in %a@." 
 	  X.print p X.print v X.print (X.ac_embed tm)
 
   end
@@ -119,12 +123,12 @@ module Make (X : Sig.X) = struct
   let flatten h (r,m) acc = 
     match X.ac_extract r with
       | Some ac when Sy.equal ac.h h -> 
-	L.fold_left (fun z (e,n) -> (e,m * n) :: z) acc ac.l
+	List.fold_left (fun z (e,n) -> (e,m * n) :: z) acc ac.l
       | _ -> (r,m) :: acc
 	
-  let sort = L.fast_sort (fun (x,n) (y,m) -> X.compare x y)
+  let sort = List.fast_sort (fun (x,n) (y,m) -> X.compare x y)
     
-  let rev_sort l = L.rev (sort l)
+  let rev_sort l = List.rev (sort l)
     
   let compact xs =
     let rec f acc = function 
@@ -137,10 +141,10 @@ module Make (X : Sig.X) = struct
     f [] (sort xs) (* increasing order - f's result in a decreasing order*)
 
   let fold_flatten sy f = 
-    L.fold_left (fun z (rt,n) -> flatten sy ((f rt),n) z) []
+    List.fold_left (fun z (rt,n) -> flatten sy ((f rt),n) z) []
 
   let expand = 
-    L.fold_left 
+    List.fold_left 
       (fun l (x,n) -> let l= ref l in for i=1 to n do l:=x::!l done; !l) []
 
   let abstract2 sy t r acc = 
@@ -151,17 +155,17 @@ module Make (X : Sig.X) = struct
           | {Term.f=Sy.Name(hs,Sy.Ac) ;xs=xs;ty=ty} ->
             let aro_sy = Sy.name ("@" ^ (HS.view hs)) in
             let aro_t = Term.make aro_sy xs ty  in
-            let eq = Literal.LT.make (Literal.Eq(aro_t,t)) in
+            let eq = Literal.LT.mk_eq aro_t t in
             X.term_embed aro_t, eq::acc
           | {Term.f=Sy.Op Sy.Mult ;xs=xs;ty=ty} ->
             let aro_sy = Sy.name "@*" in
             let aro_t = Term.make aro_sy xs ty  in
-            let eq = Literal.LT.make (Literal.Eq(aro_t,t)) in
+            let eq = Literal.LT.mk_eq aro_t t in
             X.term_embed aro_t, eq::acc
           | _ -> assert false
 
   let make t = 
-    Options.exec_timer_start Timers.TAc;
+    exec_timer_start Timers.TAc;
     let x = match Term.view t with
       | {Term.f= sy; xs=[a;b]; ty=ty} when Sy.is_ac sy ->
         let ra, ctx1 = X.make a in
@@ -173,14 +177,14 @@ module Make (X : Sig.X) = struct
         ctx
       | _ -> assert false
     in
-    Options.exec_timer_pause Timers.TAc;
+    exec_timer_pause Timers.TAc;
     x
 
   let is_mine_symb = Sy.is_ac
 
   let type_info {t=ty} = ty
 
-  let leaves { l=l } = L.fold_left (fun z (a,_) -> (X.leaves a) @ z)[] l
+  let leaves { l=l } = List.fold_left (fun z (a,_) -> (X.leaves a) @ z)[] l
     
   let rec mset_cmp = function
     |  []   ,  []   ->  0
@@ -194,7 +198,7 @@ module Make (X : Sig.X) = struct
 	if c <> 0 then c 
 	else mset_cmp(r,s)
 	  
-  let size = L.fold_left (fun z (rx,n) -> z + n) 0
+  let size = List.fold_left (fun z (rx,n) -> z + n) 0
     
 
   module SX = Set.Make(struct type t=r let compare = X.compare end)
@@ -244,18 +248,18 @@ module Make (X : Sig.X) = struct
 
 
   let subst p v ({h=h;l=l;t=t} as tm)  =
-    Options.exec_thread_yield ();
-    Options.exec_timer_start Timers.TAc;
+    exec_thread_yield ();
+    exec_timer_start Timers.TAc;
     Debug.subst p v tm;
     let t = X.color {tm with l=compact (fold_flatten h (X.subst p v) l)} in
-    Options.exec_timer_pause Timers.TAc;
+    exec_timer_pause Timers.TAc;
     t
 
       
   let add h arg arg_l = 
-    Options.exec_timer_start Timers.TAc;
+    exec_timer_start Timers.TAc;
     let r = compact (flatten h arg arg_l) in
-    Options.exec_timer_pause Timers.TAc;
+    exec_timer_pause Timers.TAc;
     r
 
   let fully_interpreted sb = true 
@@ -270,6 +274,7 @@ module Make (X : Sig.X) = struct
     in
     let xac = X.ac_embed {ac with l = compact args} in
     xac, acc
+
 (* Ne suffit pas. Il faut aussi prevoir le collapse ? *)
 (*try List.assoc xac acc, acc
   with Not_found ->

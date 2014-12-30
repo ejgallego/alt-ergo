@@ -1,29 +1,12 @@
-/******************************************************************************/
-/*     The Alt-Ergo theorem prover                                            */
-/*     Copyright (C) 2006-2013                                                */
-/*     CNRS - INRIA - Universite Paris Sud                                    */
-/*                                                                            */
-/*     Sylvain Conchon                                                        */
-/*     Evelyne Contejean                                                      */
-/*                                                                            */
-/*     Francois Bobot                                                         */
-/*     Mohamed Iguernelala                                                    */
-/*     Stephane Lescuyer                                                      */
-/*     Alain Mebsout                                                          */
-/*     Claire Dross                                                           */
-/*                                                                            */
-/*   This file is distributed under the terms of the CeCILL-C licence         */
-/******************************************************************************/
-
 /*
- * The Why certification tool
- * Copyright (C) 2002 Jean-Christophe FILLIATRE
- * 
- * This software is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation.
- * 
- * This software is distributed in the hope that it will be useful,
+* The Why certification tool
+* Copyright (C) 2002 Jean-Christophe FILLIATRE
+* 
+* This software is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public
+  * License version 2, as published by the Free Software Foundation.
+    * 
+    * This software is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * 
@@ -67,9 +50,8 @@
 %token <string> FLOAT
 %token <Num.num> NUM
 %token <string> STRING
-%token INCLUDE
 %token WITH
-%token AND LEFTARROW ARROW AC AT AXIOM INVERSION REWRITING
+%token AND LEFTARROW ARROW AC AT AXIOM REWRITING
 %token BAR HAT
 %token BOOL COLON COMMA PV DISTINCT DOT ELSE EOF EQUAL
 %token EXISTS FALSE VOID FORALL FUNCTION GE GOAL GT CHECK CUT ADDTERM
@@ -84,7 +66,6 @@
 
 /* Precedences */
 
-%nonassoc INCLUDE
 %nonassoc WITH
 %nonassoc IN
 %nonassoc prec_forall prec_exists
@@ -109,22 +90,16 @@
 %start trigger
 %type <Why_ptree.lexpr> lexpr
 %start lexpr
-%type <string list * Why_ptree.file> file
+%type <Why_ptree.file> file
 %start file
 %%
 
 file:
-| includes list1_decl EOF 
-   { Options.tool_req 0 "TR-Lexical-file"; $1, $2 }
 | list1_decl EOF 
-   { Options.tool_req 0 "TR-Lexical-file"; [], $1 }
+   { Options.tool_req 0 "TR-Lexical-file"; $1 }
 | EOF 
-   { Options.tool_req 0 "TR-Lexical-file"; [], [] }
+   { Options.tool_req 0 "TR-Lexical-file"; [] }
 ;
-
-includes:
-| INCLUDE STRING { Options.tool_req 0 "TR-Lexical-file"; [$2]}
-| INCLUDE STRING includes{ Options.tool_req 0 "TR-Lexical-file"; $2::$3}
 
 list1_decl:
 | decl 
@@ -158,16 +133,7 @@ decl:
      Predicate_def (loc (), $2, $4, $7) }
 | AXIOM ident COLON lexpr
    { Options.tool_req 0 "TR-Lexical-decl";
-     if Options.inversion_axioms () then 
-       let b = 
-         try String.sub $2 (String.length $2 - 9) 9 = "inversion" 
-         with Invalid_argument _ -> false 
-       in
-       Axiom (loc (), $2, b, $4) 
-     else Axiom (loc (), $2, false, $4) }
-| INVERSION ident COLON lexpr
-   { Options.tool_req 0 "TR-Lexical-decl";
-     Axiom (loc (), $2, true, $4) }
+     Axiom (loc (), $2, $4) }
 | REWRITING ident COLON list1_lexpr_sep_pv
    { Options.tool_req 0 "TR-Lexical-decl";
      Rewriting(loc (), $2, $4) }

@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -56,7 +62,7 @@ module type ALIEN = sig
   val extract : r -> (r abstract) option
 end
 
-module Make(X : ALIEN) = struct
+module Shostak(X : ALIEN) = struct
 
   type t = X.r abstract
   type r = X.r
@@ -756,26 +762,26 @@ module Make(X : ALIEN) = struct
 
   let fully_interpreted sb = true
 
-  let term_extract _ = None
+  let term_extract _ = None, false
 
   let abstract_selectors v acc = is_mine v, acc
 
   let solve r1 r2 pb = 
     {pb with sbt = List.rev_append (solve_bis r1 r2) pb.sbt}
 
-  module Rel = struct
+end
 
-    type r = X.r
-    type t =  unit
-
-    let empty _ = ()
-    let assume _ _ ~are_eq ~are_neq ~class_of ~classes =
-      (), { assume = []; remove = [] }
-    let add _ _ = ()
-    let case_split _ = []    
-    let query _ _ ~are_eq ~are_neq ~class_of ~classes = Sig.No
-    let print_model _ _ _ = ()
-    let new_terms env = Term.Set.empty
-  end
-
+module Relation (X : ALIEN) (Uf : Uf.S) = struct
+  type r = X.r
+  type t = unit
+  type uf = Uf.t
+  exception Inconsistent    
+  let empty _ = ()
+  let assume _ _ _ = 
+    (), { assume = []; remove = []}
+  let query _ _ _ = Sig.No
+  let case_split env = []
+  let add env _ = env
+  let print_model _ _ _ = ()
+  let new_terms env = T.Set.empty
 end

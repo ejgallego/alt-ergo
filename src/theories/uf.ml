@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -21,70 +27,65 @@ open Sig
 
 module type S = sig
   type t
+  type r
 
-  module R : Sig.X
-
-  val empty :  t
+  val empty : unit -> t
   val add : t -> Term.t -> t * Literal.LT.t list
 
   val mem : t -> Term.t -> bool
 
-  val find : t -> Term.t -> R.r * Explanation.t
-  val find_r : t -> R.r -> R.r * Explanation.t
-    
-  val union : 
-    t -> R.r -> R.r -> Explanation.t -> 
-    t * (R.r * (R.r * R.r * Explanation.t) list * R.r) list
+  val find : t -> Term.t -> r * Explanation.t
 
-  val distinct : t -> R.r list -> Explanation.t -> t
+  val find_r : t -> r -> r * Explanation.t
+
+  val union : 
+    t -> r -> r -> Explanation.t -> 
+    t * (r * (r * r * Explanation.t) list * r) list
+
+  val distinct : t -> r list -> Explanation.t -> t
 
   val are_equal : t -> Term.t -> Term.t -> Sig.answer
   val are_distinct : t -> Term.t -> Term.t -> Sig.answer
-  val already_distinct : t -> R.r list -> bool
-    
+  val already_distinct : t -> r list -> bool
+
   val class_of : t -> Term.t -> Term.t list
   val cl_extract : t -> Term.Set.t list
   val model : t -> 
-    (R.r * Term.t list * (Term.t * R.r) list) list * (Term.t list) list
+    (r * Term.t list * (Term.t * r) list) list * (Term.t list) list
+
   val print : Format.formatter -> t -> unit
   val term_repr : t -> Term.t -> Term.t
-    
-end
-  
-module Make ( R : Sig.X ) = struct
 
-  module Ac = Ac.Make(R)
-  module L  = List
-  module HS = Hstring
+end
+
+module Make (X : Sig.X) : S with type r = X.r = struct
+
+  module Ac = Ac.Make(X)
   module Ex = Explanation
-  module R = R
-  module Sy= Symbols
+  module Sy = Symbols
   module T = Term
-  module F = Formula
   module MapT = Term.Map
   module SetT = Term.Set
-  module SetF = Formula.Set
     
-  module Lit = Literal.Make(struct type t = R.r include R end)
-  module MapL = Lit.Map
+  module LX = Literal.Make(struct type t = X.r include X end)
+  module MapL = LX.Map
 
-  module MapR = Map.Make(struct type t = R.r let compare = R.compare end)
-    
-  module SetR = Set.Make(struct type t = R.r let compare = R.compare end)
+  module MapX = Map.Make(struct type t = X.r let compare = X.compare end)
+  module SetX = Set.Make(struct type t = X.r let compare = X.compare end)
 
-  module SetRR = Set.Make(struct 
-    type t = R.r * R.r 
+  module SetXX = Set.Make(struct 
+    type t = X.r * X.r 
     let compare (r1, r1') (r2, r2') = 
-      let c = R.compare r1 r2 in
+      let c = X.compare r1 r2 in
       if c <> 0 then c 
-      else  R.compare r1' r2'
+      else  X.compare r1' r2'
   end)
 
   module SetAc = Set.Make(struct type t = Ac.t let compare = Ac.compare end)
 
   module SetRL = Set.Make
     (struct 
-      type t = Ac.t * R.r * Ex.t
+      type t = Ac.t * X.r * Ex.t
       let compare (ac1,_,_) (ac2,_,_)= Ac.compare ac1 ac2
      end)
 
@@ -102,49 +103,42 @@ module Make ( R : Sig.X ) = struct
 
   end
 
+  type r = X.r
 
   type t = { 
 
     (* term -> [t] *)
-    make : R.r MapT.t; 
+    make : r MapT.t; 
     
     (* representative table *)
-    repr : (R.r * Ex.t) MapR.t; 
+    repr : (r * Ex.t) MapX.t; 
     
     (* r -> class (of terms) *)
-    classes : SetT.t MapR.t;
+    classes : SetT.t MapX.t;
     
     (*associates each value r with the set of semantical values whose
       representatives contains r *)
-    gamma : SetR.t MapR.t; 
+    gamma : SetX.t MapX.t; 
     
     (* the disequations map *)
-    neqs: Ex.t MapL.t MapR.t; 
+    neqs: Ex.t MapL.t MapX.t; 
     
     (*AC rewrite system *)
     ac_rs : SetRL.t RS.t;
   }
       
-  let empty = { 
-    make  = MapT.empty; 
-    repr = MapR.empty;
-    classes = MapR.empty; 
-    gamma = MapR.empty;
-    neqs = MapR.empty;
-    ac_rs = RS.empty
-  }
 
   exception Found_term of T.t
 
   (* hack: would need an inverse map from semantic values to terms *)
-  let terms_of_distinct env l = match Lit.view l with
+  let terms_of_distinct env l = match LX.view l with
     | Literal.Distinct (false, rl) ->
       let lt =
         List.fold_left (fun acc r -> 
 	  try 
-	    let cl = MapR.find r env.classes in
+	    let cl = MapX.find r env.classes in
 	    SetT.iter (fun t -> 
-	      if R.equal (MapT.find t env.make) r then
+	      if X.equal (MapT.find t env.make) r then
 		raise (Found_term t)) cl;
 	    acc
 	  with 
@@ -163,8 +157,8 @@ module Make ( R : Sig.X ) = struct
 
   let cl_extract env =
     if bottom_classes () then
-      let classes = MapR.fold (fun _ cl acc -> cl :: acc) env.classes [] in
-      MapR.fold (fun _ ml acc -> 
+      let classes = MapX.fold (fun _ cl acc -> cl :: acc) env.classes [] in
+      MapX.fold (fun _ ml acc -> 
 	MapL.fold (fun l _ acc -> (terms_of_distinct env l) @ acc) ml acc
       ) env.neqs classes
     else []
@@ -173,21 +167,21 @@ module Make ( R : Sig.X ) = struct
   (*BISECT-IGNORE-BEGIN*)
   module Debug = struct
 
-    let rs_print fmt = SetR.iter (fprintf fmt "\t%a@." R.print)
+    let rs_print fmt = SetX.iter (fprintf fmt "\t%a@." X.print)
     let lm_print fmt = 
-      MapL.iter (fun k dep -> fprintf fmt "%a %a" Lit.print k Ex.print dep)
+      MapL.iter (fun k dep -> fprintf fmt "%a %a" LX.print k Ex.print dep)
 
     let t_print fmt = SetT.iter (fprintf fmt "%a " T.print)
       
     let pmake fmt m = 
       fprintf fmt "[.] map:\n";
-      MapT.iter (fun t r -> fprintf fmt "%a -> %a\n" T.print t R.print r) m
+      MapT.iter (fun t r -> fprintf fmt "%a -> %a\n" T.print t X.print r) m
 	
     let prepr fmt m = 
       fprintf fmt "------------- UF: Representatives map ----------------@.";
-      MapR.iter 
+      MapX.iter 
 	(fun r (rr,dep) -> 
-	  fprintf fmt "%a --> %a %a\n" R.print r R.print rr Ex.print dep) m
+	  fprintf fmt "%a --> %a %a\n" X.print r X.print rr Ex.print dep) m
 
     let prules fmt s = 
       fprintf fmt "------------- UF: AC rewrite rules ----------------------@.";
@@ -195,23 +189,23 @@ module Make ( R : Sig.X ) = struct
 	(fun k srl -> 
 	  SetRL.iter
 	    (fun (ac,d,dep)-> fprintf fmt "%a ~~> %a %a\n" 
-              R.print (R.ac_embed ac) R.print d Ex.print dep
+              X.print (X.ac_embed ac) X.print d Ex.print dep
             )srl 
         )s
 	
     let pclasses fmt m = 
       fprintf fmt "------------- UF: Class map --------------------------@.";
-      MapR.iter 
-	(fun k s -> fprintf fmt "%a -> %a\n" R.print k Term.print_list 
+      MapX.iter 
+	(fun k s -> fprintf fmt "%a -> %a\n" X.print k Term.print_list 
 	  (SetT.elements s)) m
 
     let pgamma fmt m = 
       fprintf fmt "------------- UF: Gamma map --------------------------@.";
-      MapR.iter (fun k s -> fprintf fmt "%a -> \n%a" R.print k rs_print s) m 
+      MapX.iter (fun k s -> fprintf fmt "%a -> \n%a" X.print k rs_print s) m 
 	
     let pneqs fmt m = 
       fprintf fmt "------------- UF: Disequations map--------------------@.";
-      MapR.iter (fun k s -> fprintf fmt "%a -> %a\n" R.print k lm_print s) m
+      MapX.iter (fun k s -> fprintf fmt "%a -> %a\n" X.print k lm_print s) m
 
     let all fmt env = 
       if debug_uf () then
@@ -226,55 +220,56 @@ module Make ( R : Sig.X ) = struct
 	  fprintf fmt "-------------------------------------------------@."
 	end
 
-    let lookup_not_found t =
-      fprintf fmt "Uf: %a Not_found in env@." T.print t
+    let lookup_not_found t env =
+      fprintf fmt "Uf: %a Not_found in env@." T.print t;
+      all fmt env
         
         
     let canon_of r rr =
       if rewriting () && verbose () then 
-        fprintf fmt "canon %a = %a@." R.print r R.print rr
-     
+        fprintf fmt "canon %a = %a@." X.print r X.print rr
+          
     let init_leaf p = 
-      if debug_uf () then fprintf fmt "init_leaf: %a@." R.print p
-     
+      if debug_uf () then fprintf fmt "init_leaf: %a@." X.print p
+        
     let critical_pair rx ry =
       if debug_uf () then
-        fprintf fmt "[uf] critical pair: %a = %a@." R.print rx R.print ry
+        fprintf fmt "[uf] critical pair: %a = %a@." X.print rx X.print ry
 
     let collapse_mult g2 d2 = 
       if debug_ac () then
         fprintf fmt "[uf] collapse *: %a = %a@."
-	  R.print g2 R.print d2
+	  X.print g2 X.print d2
           
 
     let collapse g2 d2 = 
       if debug_ac () then
         fprintf fmt "[uf] collapse: %a = %a@."
-	  R.print g2 R.print d2
+	  X.print g2 X.print d2
           
     let compose p v g d = 
       if debug_ac () then
 	Format.eprintf "Compose : %a -> %a on %a and %a@." 
-	  R.print p R.print v
-	  Ac.print g R.print d
+	  X.print p X.print v
+	  Ac.print g X.print d
           
     let x_solve rr1 rr2 dep =
       if debug_uf () then 
         printf "[uf] x-solve: %a = %a %a@."
-	  R.print rr1 R.print rr2 Ex.print dep
+	  X.print rr1 X.print rr2 Ex.print dep
           
     let ac_solve p v dep =
       if debug_uf () then 
-        printf "[uf] ac-solve: %a |-> %a %a@." R.print p R.print v Ex.print dep
-      
+        printf "[uf] ac-solve: %a |-> %a %a@." X.print p X.print v Ex.print dep
+          
     let ac_x r1 r2 =
       if debug_uf () then 
 	printf "[uf] ac(x): delta (%a) = delta (%a)@." 
-	  R.print r1 R.print r2
+	  X.print r1 X.print r2
           
     let distinct d =
-      if debug_uf () then fprintf fmt "[uf] distinct %a@." Lit.print d
-      
+      if debug_uf () then fprintf fmt "[uf] distinct %a@." LX.print d
+        
     let are_distinct t1 t2 =
       if debug_uf () then
         printf " [uf] are_distinct %a %a @." T.print t1 T.print t2
@@ -288,35 +283,35 @@ module Make ( R : Sig.X ) = struct
       
     let lookup_by_t t env =
       Options.exec_thread_yield ();
-      try MapR.find (MapT.find t env.make) env.repr
+      try MapX.find (MapT.find t env.make) env.repr
       with Not_found -> 
-	Debug.lookup_not_found t; 
-	assert false (*R.make t, Ex.empty*) (* XXXX *)
+	Debug.lookup_not_found t env; 
+	assert false (*X.make t, Ex.empty*) (* XXXX *)
 	  
     let lookup_by_r r env = 
       Options.exec_thread_yield ();
-      try MapR.find r env.repr with Not_found -> r, Ex.empty
+      try MapX.find r env.repr with Not_found -> r, Ex.empty
 	
     let lookup_for_neqs env r =
       Options.exec_thread_yield ();
-      try MapR.find r env.neqs with Not_found -> MapL.empty
+      try MapX.find r env.neqs with Not_found -> MapL.empty
 	
     let add_to_classes t r classes =  
-      MapR.add r 
-	(SetT.add t (try MapR.find r classes with Not_found -> SetT.empty))
+      MapX.add r 
+	(SetT.add t (try MapX.find r classes with Not_found -> SetT.empty))
 	classes
 	
     let update_classes c nc classes = 
-      let s1 = try MapR.find c classes with Not_found -> SetT.empty in
-      let s2 = try MapR.find nc classes with Not_found -> SetT.empty in
-      MapR.remove c (MapR.add nc (SetT.union s1 s2) classes)
+      let s1 = try MapX.find c classes with Not_found -> SetT.empty in
+      let s2 = try MapX.find nc classes with Not_found -> SetT.empty in
+      MapX.remove c (MapX.add nc (SetT.union s1 s2) classes)
 	
     let add_to_gamma r c gamma =
       Options.exec_thread_yield ();
-      L.fold_left
+      List.fold_left
 	(fun gamma x -> 
-	  let s = try MapR.find x gamma with Not_found -> SetR.empty in
-	  MapR.add x (SetR.add r s) gamma) gamma (R.leaves c)
+	  let s = try MapX.find x gamma with Not_found -> SetX.empty in
+	  MapX.add x (SetX.add r s) gamma) gamma (X.leaves c)
 	
     (* r1 = r2 => neqs(r1) \uplus neqs(r2) *)
     let update_neqs r1 r2 dep env = 
@@ -334,7 +329,7 @@ module Make ( R : Sig.X ) = struct
 	      MapL.add l1 (Ex.union ex1 dep) mapl) 
 	  nq_r1 nq_r2
       in
-      MapR.add r2 mapl (MapR.add r1 mapl env.neqs)
+      MapX.add r2 mapl (MapX.add r1 mapl env.neqs)
 
     let disjoint_union l_1 l_2 = 
       let rec di_un (l1,c,l2) (l_1,l_2)= 
@@ -344,7 +339,7 @@ module Make ( R : Sig.X ) = struct
 	  | l, [] -> di_un (l @ l1,c,l2) ([],[])
 	  | [], l -> di_un (l1,c,l @ l2) ([],[])
 	  | (a,m)::r, (b,n)::s ->
-	    let cmp = R.compare a b in
+	    let cmp = X.compare a b in
 	    if cmp = 0 then
 	      if m = n then di_un (l1,(a,m)::c,l2) (r,s)
 	      else if m > n then di_un ((a,m-n)::l1,(a,n)::c,l2) (r,s)
@@ -363,7 +358,7 @@ module Make ( R : Sig.X ) = struct
 	  | l, [] -> l @ l1
 	  | [], l -> raise List_minus_exn
 	  | (a,m)::r, (b,n)::s ->
-	    let cmp = R.compare a b in
+	    let cmp = X.compare a b in
 	    if cmp = 0 then
 	      if m = n then di_un l1 r s
 	      else if m > n then di_un ((a,m-n)::l1) r s
@@ -398,17 +393,17 @@ module Make ( R : Sig.X ) = struct
       in fixpoint()
 
     let filter_leaves r = 
-      L.fold_left 
-	(fun (p,q) r -> match R.ac_extract r with 
-	  | None    -> SetR.add r p, q
+      List.fold_left 
+	(fun (p,q) r -> match X.ac_extract r with 
+	  | None    -> SetX.add r p, q
 	  | Some ac -> p, SetAc.add ac q
-	)(SetR.empty,SetAc.empty) (R.leaves r)
+	)(SetX.empty,SetAc.empty) (X.leaves r)
 	
     let canon_empty st env = 	
-      SetR.fold
+      SetX.fold
 	(fun p ((z, ex) as acc) -> 
           let q, ex_q = lookup_by_r p env in 
-	  if R.equal p q then acc else (p,q)::z, Ex.union ex_q ex)
+	  if X.equal p q then acc else (p,q)::z, Ex.union ex_q ex)
 	st ([], Ex.empty)
 
     let canon_ac st env = 
@@ -416,10 +411,10 @@ module Make ( R : Sig.X ) = struct
 	(fun ac (z,ex) ->
 	  let rac, ex_ac = apply_rs ac (RS.find ac.h env.ac_rs) in
 	  if Ac.compare ac rac = 0 then z, ex
-	  else (R.color ac, R.color rac) :: z, Ex.union ex ex_ac)
+	  else (X.color ac, X.color rac) :: z, Ex.union ex ex_ac)
         st ([], Ex.empty)
 	
-    let canon_aux rx = List.fold_left (fun r (p,v) -> R.subst p v r) rx
+    let canon_aux rx = List.fold_left (fun r (p,v) -> X.subst p v r) rx
       
     let rec canon env r ex_r = 
       let se, sac = filter_leaves r in
@@ -427,7 +422,7 @@ module Make ( R : Sig.X ) = struct
       let subst_ac, ex_ac = canon_ac sac env in (* explications? *)
       let r2 = canon_aux (canon_aux r subst_ac) subst in
       let ex_r2 = Ex.union (Ex.union ex_r ex_subst) ex_ac in
-      if R.equal r r2 then r2, ex_r2 else canon env r2 ex_r2
+      if X.equal r r2 then r2, ex_r2 else canon env r2 ex_r2
 
     let normal_form env r =
       let rr, ex = canon env r Ex.empty in
@@ -439,36 +434,36 @@ module Make ( R : Sig.X ) = struct
 
     let find_or_normal_form env r =
       Options.exec_thread_yield ();
-      try MapR.find r env.repr with Not_found -> normal_form env r
+      try MapX.find r env.repr with Not_found -> normal_form env r
 
     let init_leaf env p =
       Debug.init_leaf p;
-      let in_repr = MapR.mem p env.repr in
+      let in_repr = MapX.mem p env.repr in
       { env with
 	repr    = 
 	  if in_repr then env.repr 
-	  else MapR.add p (p, Ex.empty) env.repr;
+	  else MapX.add p (p, Ex.empty) env.repr;
 	classes = 
-	  if MapR.mem p env.classes then env.classes
+	  if MapX.mem p env.classes then env.classes
 	  else update_classes p p env.classes;
 	gamma   = 
 	  if in_repr then env.gamma
 	  else add_to_gamma p p env.gamma ;
 	neqs    =  
-	  if MapR.mem p env.neqs then env.neqs 
+	  if MapX.mem p env.neqs then env.neqs 
 	  else update_neqs p p Ex.empty env } 
         
     let init_term env t = 
-      let mkr, ctx = R.make t in
+      let mkr, ctx = X.make t in
       let rp, ex = normal_form env mkr in
       {env with
 	make    = MapT.add t mkr env.make; 
-	repr    = MapR.add mkr (rp,ex) env.repr;
+	repr    = MapX.add mkr (rp,ex) env.repr;
 	classes = add_to_classes t rp env.classes;
 	gamma   = add_to_gamma mkr rp env.gamma;
 	neqs    = 
-	  if MapR.mem rp env.neqs then env.neqs (* pourquoi ce test *)
-	  else MapR.add rp MapL.empty env.neqs}, ctx
+	  if MapX.mem rp env.neqs then env.neqs (* pourquoi ce test *)
+	  else MapX.add rp MapL.empty env.neqs}, ctx
 
 
     let head_cp eqs env (({h=h} as ac), v, dep) = 
@@ -478,10 +473,10 @@ module Make ( R : Sig.X ) = struct
 	    match disjoint_union ac.l g.l with
 	      | _  , [] , _  -> ()
 	      | l1 , cm , l2 -> 
-		let rx = R.color {ac with l = Ac.add h (d,1) l1} in
-		let ry = R.color {g  with l = Ac.add h (v,1) l2} in
+		let rx = X.color {ac with l = Ac.add h (d,1) l1} in
+		let ry = X.color {g  with l = Ac.add h (v,1) l2} in
                 Debug.critical_pair rx ry;
-                if not (R.equal rx ry) then 
+                if not (X.equal rx ry) then 
                   Queue.push (rx, ry, Ex.union dep dep_rl) eqs)
 	  (RS.find h env.ac_rs)
       with Not_found -> assert false
@@ -493,10 +488,10 @@ module Make ( R : Sig.X ) = struct
 	    (fun ((g, d, dep_rl) as rul) env ->
 	      Options.exec_thread_yield ();
 	      let env = {env with ac_rs = RS.remove_rule rul env.ac_rs} in
-	      let gx = R.color g in
+	      let gx = X.color g in
 	      let g2, ex_g2 = normal_form env (Ac.subst p v g) in
-	      let d2, ex_d2 = normal_form env (R.subst p v d) in
-              if R.compare g2 d2 <= 0 then begin
+	      let d2, ex_d2 = normal_form env (X.subst p v d) in
+              if X.compare g2 d2 <= 0 then begin
                 Debug.collapse_mult g2 d2;
                 let ex = Ex.union 
 		  (Ex.union ex_g2 ex_d2) (Ex.union dep_rl dep) in
@@ -504,7 +499,7 @@ module Make ( R : Sig.X ) = struct
 	        env
               end
               else
-	        if R.equal g2 gx then (* compose *)
+	        if X.equal g2 gx then (* compose *)
 		  begin
                     Debug.compose p v g d;
                     let ex = Ex.union ex_d2 (Ex.union dep_rl dep) in
@@ -524,7 +519,7 @@ module Make ( R : Sig.X ) = struct
 	
     (* TODO explications: ajout de dep dans ac_rs *)
     let apply_sigma_ac eqs env ((p, v, dep) as sigma) = 
-      match R.ac_extract p with
+      match X.ac_extract p with
 	| None -> 
 	  comp_collapse eqs env sigma
 	| Some r -> 
@@ -534,7 +529,7 @@ module Make ( R : Sig.X ) = struct
           env
 	    
     let update_aux dep set env= 
-      SetRR.fold 
+      SetXX.fold 
 	(fun (rr, nrr) env -> 
 	  { env with
 	    neqs = update_neqs rr nrr dep env ;
@@ -542,24 +537,24 @@ module Make ( R : Sig.X ) = struct
 	set env
 
     let apply_sigma_uf env (p, v, dep) =
-      assert (MapR.mem p env.gamma);
-      let use_p = MapR.find p env.gamma in
+      assert (MapX.mem p env.gamma);
+      let use_p = MapX.find p env.gamma in
       try 
-	let env, tch, neqs_to_up = SetR.fold 
+	let env, tch, neqs_to_up = SetX.fold 
 	  (fun r (env, touched, neqs_to_up) ->
 	    Options.exec_thread_yield (); 
-	    let rr, ex = MapR.find r env.repr in
-	    let nrr = R.subst p v rr in
-	    if R.equal rr nrr then env, touched, neqs_to_up
+	    let rr, ex = MapX.find r env.repr in
+	    let nrr = X.subst p v rr in
+	    if X.equal rr nrr then env, touched, neqs_to_up
 	    else 
 	      let ex  = Ex.union ex dep in
               let env = 
 		{env with
-		  repr = MapR.add r (nrr, ex) env .repr;
+		  repr = MapX.add r (nrr, ex) env .repr;
 		  gamma = add_to_gamma r nrr env.gamma } 
 	      in
-	      env, (r, nrr, ex)::touched, SetRR.add (rr, nrr) neqs_to_up
-	  ) use_p (env, [], SetRR.empty) in
+	      env, (r, nrr, ex)::touched, SetXX.add (rr, nrr) neqs_to_up
+	  ) use_p (env, [], SetXX.empty) in
 	(* Correction : Do not update neqs twice for the same r *)
 	update_aux dep neqs_to_up env, tch 
 	  
@@ -568,20 +563,20 @@ module Make ( R : Sig.X ) = struct
     let up_uf_rs dep env tch =
       if RS.is_empty env.ac_rs then env, tch
       else
-	let env, tch, neqs_to_up = MapR.fold
+	let env, tch, neqs_to_up = MapX.fold
 	  (fun r (rr,ex) (env,tch,neqs_to_up) ->
 	    Options.exec_thread_yield ();
 	    let nrr, ex_nrr = normal_form env rr in
-	    if R.equal nrr rr then env, tch, neqs_to_up
+	    if X.equal nrr rr then env, tch, neqs_to_up
 	    else 
 	      let ex = Ex.union ex ex_nrr in
               let env = 
 		{env with
-	          repr = MapR.add r (nrr, ex) env.repr;
+	          repr = MapX.add r (nrr, ex) env.repr;
 	          gamma = add_to_gamma r nrr env.gamma }
               in
-              env, (r,[r, nrr, ex],nrr)::tch, SetRR.add (rr, nrr) neqs_to_up
-	  ) env.repr (env, tch, SetRR.empty)
+              env, (r,[r, nrr, ex],nrr)::tch, SetXX.add (rr, nrr) neqs_to_up
+	  ) env.repr (env, tch, SetXX.empty)
         in 
         (* Correction : Do not update neqs twice for the same r *)
 	update_aux dep neqs_to_up env, tch 
@@ -603,10 +598,10 @@ module Make ( R : Sig.X ) = struct
     (* pourquoi recuperer le representant de rv? r = rv d'apres testopt *)
     Debug.ac_solve p v dep;
     assert (not (Options.enable_assertions()) ||
-              let rp, _ = Env.find_or_normal_form env p in R.equal p rp);
+              let rp, _ = Env.find_or_normal_form env p in X.equal p rp);
     let rv, ex_rv = Env.find_or_normal_form env v in
     assert (not (Options.enable_assertions()) ||
-              let rv, _ = Env.find_or_normal_form env v in R.equal v rv);
+              let rv, _ = Env.find_or_normal_form env v in X.equal v rv);
     let dep = Ex.union ex_rv dep in
     Env.apply_sigma eqs env tch (p, rv, dep)
 
@@ -615,14 +610,14 @@ module Make ( R : Sig.X ) = struct
     let rr2, ex_r2 = Env.find_or_normal_form env r2 in
     let dep = Ex.union dep (Ex.union ex_r1 ex_r2) in
     Debug.x_solve rr1 rr2 dep;
-    if R.equal rr1 rr2 then begin
+    if X.equal rr1 rr2 then begin
       Options.tool_req 3 "TR-CCX-Remove";
       [] (* Remove rule *)
     end
     else 
       begin
 	ignore (Env.update_neqs rr1 rr2 dep env);
-        try R.solve rr1 rr2 
+        try X.solve rr1 rr2 
 	with Unsolvable ->
 	  Options.tool_req 3 "TR-CCX-Congruence-Conflict";
 	  raise (Inconsistent (dep, cl_extract env))
@@ -646,7 +641,7 @@ module Make ( R : Sig.X ) = struct
 
   let rec distinct env rl dep =
     Debug.all fmt env;
-    let d = Lit.make (Literal.Distinct (false,rl)) in
+    let d = LX.mk_distinct false rl in
     Debug.distinct d;
     let env, _, newds = 
       List.fold_left
@@ -654,13 +649,13 @@ module Make ( R : Sig.X ) = struct
 	  Options.exec_thread_yield ();
 	  let rr, ex = Env.find_or_normal_form env r in 
 	  try
-	    let exr = MapR.find rr mapr in
+	    let exr = MapX.find rr mapr in
 	    Options.tool_req 3 "TR-CCX-Distinct-Conflict";
 	    raise (Inconsistent ((Ex.union ex exr), cl_extract env))
 	  with Not_found ->
 	    let uex = Ex.union ex dep in
 	    let mdis = 
-	      try MapR.find rr env.neqs with Not_found -> MapL.empty in
+	      try MapX.find rr env.neqs with Not_found -> MapL.empty in
 	    let mdis = 
 	      try 
 		MapL.add d (Ex.merge uex (MapL.find d mdis)) mdis
@@ -668,20 +663,20 @@ module Make ( R : Sig.X ) = struct
 		MapL.add d uex mdis
 	    in
 	    let env = Env.init_leaf env rr in
-            let env = {env with neqs = MapR.add rr mdis env.neqs} in
-            env, MapR.add rr uex mapr, (rr, ex, mapr)::newds
+            let env = {env with neqs = MapX.add rr mdis env.neqs} in
+            env, MapX.add rr uex mapr, (rr, ex, mapr)::newds
 	)
-	(env, MapR.empty, [])
+	(env, MapX.empty, [])
 	rl
     in
     List.fold_left 
       (fun env (r1, ex1, mapr) -> 
-	MapR.fold (fun r2 ex2 env -> 
+	MapX.fold (fun r2 ex2 env -> 
 	  let ex = Ex.union ex1 (Ex.union ex2 dep) in
-	  try match R.solve r1 r2 with
+	  try match X.solve r1 r2 with
 	    | [a, b] -> 
-	      if (R.equal a r1 && R.equal b r2) ||
-		(R.equal a r2 && R.equal b r1) then env
+	      if (X.equal a r1 && X.equal b r2) ||
+		(X.equal a r2 && X.equal b r1) then env
 	      else
 		distinct env [a; b] ex
 	    | []  -> 
@@ -693,11 +688,12 @@ module Make ( R : Sig.X ) = struct
 
       
   let are_equal env t1 t2 = 
-    let r1, ex_r1 = Env.lookup_by_t t1 env in
-    let r2, ex_r2 = Env.lookup_by_t t2 env in
-    if R.equal r1 r2 then
-      Yes (Ex.union ex_r1 ex_r2, cl_extract env)
-    else No
+    if Term.equal t1 t2 then Sig.Yes (Ex.empty, cl_extract env)
+    else
+      let r1, ex_r1 = Env.lookup_by_t t1 env in
+      let r2, ex_r2 = Env.lookup_by_t t2 env in
+      if X.equal r1 r2 then Yes (Ex.union ex_r1 ex_r2, cl_extract env)
+      else No
 
   let are_distinct env t1 t2 = 
     Debug.are_distinct t1 t2;
@@ -709,10 +705,10 @@ module Make ( R : Sig.X ) = struct
     with Inconsistent (ex, classes) -> Yes (ex, classes)
 
   let already_distinct env lr =
-    let d = Lit.make (Literal.Distinct (false,lr)) in
+    let d = LX.mk_distinct false lr in
     try
       List.iter (fun r ->
-  	let mdis = MapR.find r env.neqs in
+  	let mdis = MapX.find r env.neqs in
   	ignore (MapL.find d mdis)
       ) lr;
       true
@@ -729,13 +725,13 @@ module Make ( R : Sig.X ) = struct
 
   let model env =
     let eqs =
-      MapR.fold (fun r cl acc ->
+      MapX.fold (fun r cl acc ->
     	let l, to_rel =
     	  List.fold_left (fun (l, to_rel) t ->
     	    let rt = MapT.find t env.make in
     	    if complete_model () || T.is_in_model t then
-    	      if rt <> r then t::l, (t,rt)::to_rel
-    	      else l, (t,rt)::to_rel
+    	      if X.equal rt r then l, (t,rt)::to_rel
+    	      else t::l, (t,rt)::to_rel
     	    else l, to_rel
     	  ) ([], []) (SetT.elements cl) in
     	(r, l, to_rel)::acc
@@ -776,8 +772,8 @@ module Make ( R : Sig.X ) = struct
 
   let class_of env t = 
     try 
-      let rt, _ = MapR.find (MapT.find t env.make) env.repr in
-      MapR.find rt env.classes
+      let rt, _ = MapX.find (MapT.find t env.make) env.repr in
+      MapX.find rt env.classes
     with Not_found -> SetT.singleton t
 
   let term_repr uf t = 
@@ -794,4 +790,19 @@ module Make ( R : Sig.X ) = struct
 
   let class_of env t = SetT.elements (class_of env t)
 
+  let empty () = 
+    let env = { 
+      make  = MapT.empty; 
+      repr = MapX.empty;
+      classes = MapX.empty; 
+      gamma = MapX.empty;
+      neqs = MapX.empty;
+      ac_rs = RS.empty
+    }
+    in
+    (*
+      let env, _ = add env Term.vrai in
+      let env, _ = add env Term.faux in
+    *)
+    distinct env [X.top (); X.bot ()] Ex.empty
 end

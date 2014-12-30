@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -57,10 +63,10 @@ let print full fmt ty =
 	fprintf fmt "%a%s" printl l (Hstring.view n)
       else
 	(Hashtbl.add h v (); 
-	   (*fprintf fmt "('a_%d->%a)" v print t *)
+	 (*fprintf fmt "('a_%d->%a)" v print t *)
 	 print fmt t)
     | Tvar{v=v ; value = Some t} -> 
-	    (*fprintf fmt "('a_%d->%a)" v print t *)
+      (*fprintf fmt "('a_%d->%a)" v print t *)
       print fmt t
     | Text(l, s) -> fprintf fmt "%a%s" printl l (Hstring.view s)
     | Tfarray (t1, t2) -> fprintf fmt "(%a,%a) farray" print t1 print t2

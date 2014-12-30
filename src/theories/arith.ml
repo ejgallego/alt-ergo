@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -29,27 +35,33 @@ let alt = Hstring.make "<"
 let is_mult h = Sy.equal (Sy.Op Sy.Mult) h
 let mod_symb = Sy.name "@mod"
 
-module Type (X:Sig.X) : Polynome.T with type r =  X.r = struct
 
-  module Ac = Ac.Make(X)
-
-  let mult v1 v2 = 
-    X.ac_embed
-      { h = Sy.Op Sy.Mult;
-	t = X.type_info v1;
-	l = let l2 = match X.ac_extract v1 with
-	  | Some {h=h; l=l} when Sy.equal h (Sy.Op Sy.Mult) -> l 
-	  | _ -> [v1, 1]
-	    in Ac.add (Sy.Op Sy.Mult) (v2,1) l2 }
-
-  include Polynome.Make(struct include X let mult = mult end)
-
+module Type (X:Sig.X) : Polynome.T with type r = X.r = struct
+  include
+    Polynome.Make(struct
+      include X
+      module Ac = Ac.Make(X)
+      let mult v1 v2 =
+        X.ac_embed
+          { h = Sy.Op Sy.Mult;
+	    t = X.type_info v1;
+	    l = let l2 = match X.ac_extract v1 with
+	      | Some {h=h; l=l} when Sy.equal h (Sy.Op Sy.Mult) -> l
+	      | _ -> [v1, 1]
+	        in Ac.add (Sy.Op Sy.Mult) (v2,1) l2 
+          }
+    end)
 end
 
-module Make 
+module type EXTENDED_Polynome = sig
+  include Polynome.T
+  val extract : r -> t option
+  val embed : t -> r
+end
+
+module Shostak 
   (X : Sig.X)
-  (P : Polynome.T with type r = X.r)
-  (C : Sig.C with type t = P.t and type r = X.r) = struct
+  (P : EXTENDED_Polynome with type r = X.r) = struct
 
     type t = P.t
 
@@ -89,34 +101,34 @@ module Make
 
     let is_mine p = match P.is_monomial p with
       | Some (a,x,b) when Q.equal a Q.one && Q.sign b = 0 -> x
-      | _ -> C.embed p
+      | _ -> P.embed p
         
-    let embed r = match C.extract r with
+    let embed r = match P.extract r with
       | Some p -> p
       | _ -> P.create [Q.one, r] Q.zero (X.type_info r)  
 
-  (* t1 % t2 = md  <-> 
-     c1. 0 <= md ;
-     c2. md < t2 ;
-     c3. exists k. t1 = t2 * k + t ;
-     c4. t2 <> 0 (already checked) *)
+    (* t1 % t2 = md  <-> 
+       c1. 0 <= md ;
+       c2. md < t2 ;
+       c3. exists k. t1 = t2 * k + t ;
+       c4. t2 <> 0 (already checked) *)
     let mk_modulo md t1 t2 p2 ctx = 
       let zero = T.int "0" in
-      let c1 = A.LT.make (A.Builtin(true, ale, [zero; md])) in
+      let c1 = A.LT.mk_builtin true ale [zero; md] in
       let c2 =
         match P.is_const p2 with
 	  | Some n2 -> 
 	    let an2 = Q.abs n2 in
 	    assert (Q.is_integer an2);
 	    let t2 = T.int (Q.string_of an2) in
-	    A.LT.make (A.Builtin(true, alt, [md; t2]))
+	    A.LT.mk_builtin true alt [md; t2]
 	  | None -> 
-	    A.LT.make (A.Builtin(true, alt, [md; t2])) 
+	    A.LT.mk_builtin true alt [md; t2]
       in
       let k  = T.fresh_name Ty.Tint in
       let t3 = T.make (Sy.Op Sy.Mult) [t2;k] Ty.Tint in
       let t3 = T.make (Sy.Op Sy.Plus) [t3;md] Ty.Tint in
-      let c3 = A.LT.make (A.Eq (t1, t3)) in
+      let c3 = A.LT.mk_eq t1 t3 in
       c3 :: c2 :: c1 :: ctx    
 
     let mk_euc_division p p2 t1 t2 ctx = 
@@ -181,7 +193,7 @@ module Make
         | _ ->
 	  let a, ctx' = X.make t in
 	  let ctx = ctx' @ ctx in
-	  match C.extract a with
+	  match P.extract a with
 	    | Some p' -> P.add p (P.mult (P.create [] coef ty) p'), ctx
 	    | _ -> P.add p (P.create [coef, a] Q.zero ty), ctx
 
@@ -204,7 +216,7 @@ module Make
       List.fold_left (fun acc (r, n) -> acc + n * nb_vars_in_alien r) 0 l 
 
     and nb_vars_in_alien r = 
-      match C.extract r with
+      match P.extract r with
         | Some p -> 
 	  let l, _ = P.to_list p in
           List.fold_left (fun acc (a, x) -> max acc (nb_vars_in_alien x)) 0 l
@@ -227,7 +239,7 @@ module Make
       List.exists
         (fun x -> 
           match X.term_extract x with
-            | Some t -> Term.is_fresh t 
+            | Some t, _ -> Term.is_fresh t 
             | _ -> false
         ) (X.leaves xp)
 
@@ -243,16 +255,6 @@ module Make
             if mx = 0 || mx = 1 || number_of_vars ac.l > mx then is_mine p 
 	    else X.ac_embed ac
           else xp
-
-  (*try
-    List.iter
-    (fun (coef,x) ->
-    match X.ac_extract x with
-    Some ac when is_mult ac.h -> raise Exit | _ -> ()
-    )(fst (P.to_list p));
-    is_mine p
-    with Exit -> X.ac_embed ac*)
-
 
     let type_info p = P.type_info p
 
@@ -277,7 +279,7 @@ module Make
         List.fold_left
           (fun p (ai, xi) ->
 	    let xi' = X.subst x t xi in
-	    let p' = match C.extract xi' with
+	    let p' = match P.extract xi' with
 	      | Some p' -> P.mult (P.create [] ai ty) p'
 	      | _ -> P.create [ai, xi'] Q.zero ty
 	    in
@@ -293,7 +295,7 @@ module Make
 
     let hash = P.hash
 
-  (* symmetric modulo p 131 *)
+    (* symmetric modulo p 131 *)
     let mod_sym a b = 
       let m = Q.modulo a b in 
       let m = 
@@ -317,7 +319,7 @@ module Make
     let apply_subst sb v = 
       is_mine (List.fold_left (fun v (x, p) -> embed (subst x p v)) v sb)
 
-  (* substituer toutes variables plus grandes que x *)
+    (* substituer toutes variables plus grandes que x *)
     let subst_bigger x l = 
       List.fold_left 
         (fun (l, sb) (b, y) ->
@@ -340,14 +342,14 @@ module Make
 	    else (b, y), ((a, x):: l)) ((a, x),[]) s
           
 
-  (* Decision Procedures. Page 131 *)
+    (* Decision Procedures. Page 131 *)
     let rec omega l b = 
       
-    (* 1. choix d'une variable donc le |coef| est minimal *)
+      (* 1. choix d'une variable donc le |coef| est minimal *)
       let (a, x), l = extract_min l in 
 
-    (* 2. substituer les aliens plus grand que x pour 
-       assurer l'invariant sur l'ordre AC *)
+      (* 2. substituer les aliens plus grand que x pour 
+         assurer l'invariant sur l'ordre AC *)
       let l, sbs = subst_bigger x l in
       let p = P.create l b Ty.Tint in
       assert (Q.sign a <> 0);
@@ -372,34 +374,34 @@ module Make
           
     and omega_sigma sbs a x l b =
       
-    (* 1. on definie m qui vaut a + 1 *)
+      (* 1. on definie m qui vaut a + 1 *)
       let m = Q.add a Q.one in
 
-    (* 2. on introduit une variable fraiche *)
+      (* 2. on introduit une variable fraiche *)
       let sigma = X.term_embed (T.fresh_name Ty.Tint) in
       
-    (* 3. l'application de la formule (5.63) nous donne la valeur du pivot x*)
+      (* 3. l'application de la formule (5.63) nous donne la valeur du pivot x*)
       let mm_sigma = (Q.minus m, sigma) in
       let l_mod = map_monomes (fun a -> mod_sym a m) l mm_sigma in
 
-    (* 3.1. Attention au signe de b : 
-       on le passe a droite avant de faire mod_sym, d'ou Q.minus *)
+      (* 3.1. Attention au signe de b : 
+         on le passe a droite avant de faire mod_sym, d'ou Q.minus *)
       let b_mod = Q.minus (mod_sym (Q.minus b) m) in
       let p = P.create l_mod b_mod Ty.Tint in
 
       let sbs = (x, p) :: sbs in
       
-    (* 4. on substitue x par sa valeur dans l'equation de depart. 
-       Voir la formule (5.64) *)
+      (* 4. on substitue x par sa valeur dans l'equation de depart. 
+         Voir la formule (5.64) *)
       let p' = P.add (P.mult_const a p) (P.create l b Ty.Tint) in
       
-    (* 5. on resoud sur l'equation simplifiee *)
+      (* 5. on resoud sur l'equation simplifiee *)
       let sbs2 = solve_int p' in
 
-    (* 6. on normalise sbs par sbs2 *)
+      (* 6. on normalise sbs par sbs2 *)
       let sbs =  List.map (fun (x, v) -> x, apply_subst sbs2 v) sbs in
 
-    (* 7. on supprime les liaisons inutiles de sbs2 et on merge avec sbs *)
+      (* 7. on supprime les liaisons inutiles de sbs2 et on merge avec sbs *)
       let sbs2 = List.filter (fun (y, _) -> y <> sigma) sbs2 in
       List.rev_append sbs sbs2
 
@@ -490,7 +492,7 @@ module Make
       let sbt = solve_one r1 r2 in
       {pb with sbt = List.rev_append (make_idemp r1 r2 sbt) pb.sbt}
 
-  (*XXX*)
+    (*XXX*)
 
     let make t =
       if profiling() then
@@ -535,18 +537,12 @@ module Make
         | Sy.Op (Sy.Plus | Sy.Minus) -> true
         | _ -> false
 
-
-    let term_extract _ = None
+    let term_extract _ = None, false
 
     let abstract_selectors p acc =
       let p, acc = P.abstract_selectors p acc in
       is_mine p, acc
 
-    module Rel = Fm.Make (X) 
-      (struct
-        include P 
-        let poly_of = embed
-        let alien_of = is_mine
-       end)
-      
   end
+
+module Relation = Fm.Relation

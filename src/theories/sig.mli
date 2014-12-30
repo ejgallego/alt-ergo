@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -18,11 +24,9 @@ type answer = Yes of Explanation.t * Term.Set.t list | No
 
 type 'a ac = {h: Symbols.t ; t: Ty.t ; l: ('a * int) list}
 
-type 'a literal = LSem of 'a Literal.view | LTerm of Literal.LT.t
-                  | LBoxed of Boxed.t
+type 'a literal = LTerm of Literal.LT.t | LSem of 'a Literal.view 
 
-type 'a input =  
-    'a Literal.view * Literal.LT.t option * Explanation.t
+type 'a input =  'a Literal.view * Literal.LT.t option * Explanation.t
 
 type 'a result = { 
   assume : ('a literal * Explanation.t) list;  
@@ -34,26 +38,11 @@ type 'a solve_pb = { sbt : ('a * 'a) list; eqs : ('a * 'a) list }
 module type RELATION = sig
   type t
   type r
-
+  type uf
   val empty : Term.Set.t list -> t
     
-  val assume : 
-    t -> 
-    (r input) list -> 
-    are_eq : (Term.t -> Term.t -> answer) -> 
-    are_neq : (Term.t -> Term.t -> answer) -> 
-    class_of : (Term.t -> Term.t list) -> 
-    classes : Term.Set.t list -> 
-    t * r result
-
-  val query : 
-    t -> 
-    r input -> 
-    are_eq : (Term.t -> Term.t -> answer) -> 
-    are_neq : (Term.t -> Term.t -> answer) -> 
-    class_of : (Term.t -> Term.t list) ->  
-    classes : Term.Set.t list -> 
-    answer
+  val assume : t -> uf -> (r input) list -> t * r result
+  val query  : t -> uf -> r input -> answer
 
   val case_split : t -> (r Literal.view * Explanation.t * Numbers.Q.t) list
   (** case_split env returns a list of equalities *)
@@ -64,11 +53,9 @@ module type RELATION = sig
   val print_model : Format.formatter -> t -> (Term.t * r) list -> unit
     
   val new_terms : t -> Term.Set.t
-
-
 end
 
-module type THEORY = sig
+module type SHOSTAK = sig
 
   (**Type of terms of the theory*)
   type t
@@ -82,7 +69,7 @@ module type THEORY = sig
   (** Give a representant of a term of the theory*)
   val make : Term.t -> r * Literal.LT.t list
 
-  val term_extract : r -> Term.t option
+  val term_extract : r -> Term.t option * bool (* original term ? *)
 
   val color : (r ac) -> r
     
@@ -107,7 +94,6 @@ module type THEORY = sig
 
   val abstract_selectors : t -> (r * r) list -> r * (r * r) list
 
-  module Rel : RELATION with type r = r
 end
 
 module type X = sig
@@ -131,7 +117,7 @@ module type X = sig
     
   val term_embed : Term.t -> r
 
-  val term_extract : r -> Term.t option 
+  val term_extract : r -> Term.t option * bool (* original term ? *)
 
   val ac_embed : r ac -> r
     
@@ -145,57 +131,6 @@ module type X = sig
     
   val abstract_selectors : r -> (r * r) list -> r * (r * r) list
     
-  module Rel : RELATION with type r = r
-
-end
-
-module type C = sig
-  type t
-  type r
-  val extract : r -> t option
-  val embed : t -> r
-end
-
-module type CC =  sig
-
-  module Rel : sig 
-    type t
-    type r
-    type choice
-
-    val choice_to_literal : choice -> r literal
-    val choice_mk_not : choice -> choice
-    val choice_print : Format.formatter -> choice -> unit
-    val extract_terms_from_choice : Term.Set.t -> choice -> Term.Set.t
-
-    val query : t -> r input ->
-      are_eq:(Term.t -> Term.t -> answer) ->
-      are_neq:(Term.t -> Term.t -> answer) ->
-      class_of:(Term.t -> Term.t list) ->
-      classes:Term.Set.t list -> answer
-
-    val case_split : t -> (choice * Explanation.t * Numbers.Q.t) list
-
-    val print_model : Format.formatter -> t -> (Term.t * r) list -> unit
-
-    val new_terms : t -> Term.Set.t
-  end
-
-  type use
-  type uf
-  type 'a accumulator
-
-  type env = { 
-    use : use;  
-    uf : uf ;
-    relation : Rel.t }
-
-  val empty : unit -> env
-  val assume_literal : env -> Rel.r accumulator ->
-    (Rel.r literal * Explanation.t) list -> env * Rel.r accumulator
-  val add : env -> Rel.r accumulator -> Literal.LT.t -> 
-    Explanation.t -> env * Rel.r accumulator
-  val term_canonical_view : env -> Literal.LT.t -> Explanation.t ->
-    (Rel.r Literal.view * Explanation.t)
-
+  val top : unit -> r
+  val bot : unit -> r
 end

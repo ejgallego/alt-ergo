@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -21,6 +27,9 @@ open Why_connected
 open Lexing
 open Format
 open Options
+
+module SAT = (val (Sat_solvers.get_current ()) : Sat_solvers.S)
+module FE = Frontend.Make(SAT)
 
 (* type search_bar = { *)
 (*   sbar: GButton.toolbar; *)
@@ -104,6 +113,11 @@ let () =
     let _ = GMain.init () in ()
   with Gtk.Error s -> eprintf "%s@." s
 
+let () = 
+  Sys.set_signal Sys.sigint 
+    (Sys.Signal_handle 
+       (fun _ -> print_endline "User wants me to stop."; exit 1))	  
+
 
 let save_session envs =
   let session_cout =
@@ -146,10 +160,10 @@ let show_about () =
 	      "Mohamed Iguernelala";
 	      "Stephane Lescuyer";
 	      "Alain Mebsout"]
-    ~copyright:"2006-2013\nCNRS - INRIA - Université Paris Sud"
+    ~copyright:"CNRS - INRIA - Université Paris Sud (2006-2013)\nOCamlPro (2013-2014)"
     ~license:"CeCILL-C"
     ~version:Version.version
-    ~website:"http://alt-ergo.lri.fr"
+    ~website:"http://alt-ergo.lri.fr\nhttp://alt-ergo.ocamlpro.com"
     ~title:v ()
   in
   ignore (aw#connect#response ~callback:(fun _ -> aw#destroy ()));
@@ -198,7 +212,7 @@ let pop_model sat_env () =
     ~wrap_mode:`CHAR() in
   let _ = tv1#misc#modify_font monospace_font in
   let _ = tv1#set_editable false in
-  fprintf str_formatter "%a" (Sat.print_model ~header:false) sat_env;
+  fprintf str_formatter "%a" (SAT.print_model ~header:false) sat_env;
   let model_text = (flush_str_formatter()) in
   buf1#set_text model_text;
   pop_w#show ()
@@ -425,11 +439,14 @@ let add_inst ({h=h} as inst_model) orig =
       r, n, limit, false
     with Not_found -> ref None, ref 0, ref (-1), true
   in
-  if !limit <> -1 && !limit < !n + 1 then raise Exit;
-  incr n;
-  if to_add then Hashtbl.add h id (r, n, name, limit);
-  inst_model.max <- max inst_model.max !n;
-  Thread.yield ()
+  if !limit <> -1 && !limit < !n + 1 then false
+  else begin
+    incr n;
+    if to_add then Hashtbl.add h id (r, n, name, limit);
+    inst_model.max <- max inst_model.max !n;
+    Thread.yield ();
+    true
+  end
 
 
 let reset_inst inst_model =
@@ -440,7 +457,7 @@ let reset_inst inst_model =
 let empty_sat_inst inst_model =
   inst_model.max <- 0;
   reset_inst inst_model;
-  Sat.empty_with_inst (add_inst inst_model)
+  SAT.empty_with_inst (add_inst inst_model)
 
 
 exception Abort_thread
@@ -449,7 +466,7 @@ exception Timeout
 let update_status image label buttonclean env d s steps =
   let satmode = smtfile() || smt2file() || satmode() in
   match s with
-    | Frontend.Unsat dep ->
+    | FE.Unsat dep ->
       let time = Frontend.Time.get () in
       if not satmode then Loc.report std_formatter d.st_loc;
       if satmode then printf "@{<C.F_Red>unsat@}@."
@@ -464,7 +481,7 @@ let update_status image label buttonclean env d s steps =
       ignore(buttonclean#connect#clicked 
 	       ~callback:(fun () -> prune_unused env))
 	
-    | Frontend.Inconsistent ->
+    | FE.Inconsistent ->
       if not satmode then 
 	(Loc.report std_formatter d.st_loc; 
 	 fprintf fmt "Inconsistent assumption@.")
@@ -472,7 +489,7 @@ let update_status image label buttonclean env d s steps =
       image#set_stock `EXECUTE;
       label#set_text "  Inconsistent assumption"
 	
-    | Frontend.Unknown t ->
+    | FE.Unknown t ->
       if not satmode then
 	(Loc.report std_formatter d.st_loc; printf "I don't know.@.")
       else printf "unknown@.";
@@ -481,7 +498,7 @@ let update_status image label buttonclean env d s steps =
 			(Frontend.Time.get()));
       if model () then pop_model t ()
 	
-    | Frontend.Sat t ->
+    | FE.Sat t ->
       if not satmode then Loc.report std_formatter d.st_loc;
       if satmode then printf "unknown (sat)@." 
       else printf "I don't know@.";
@@ -588,7 +605,7 @@ let run_replay env =
     (fun dcl ->
       let cnf = Cnf.make dcl in
       ignore (Queue.fold
-		(Frontend.process_decl Frontend.print_status)
+		(FE.process_decl FE.print_status)
 		(empty_sat_inst env.insts, true, Explanation.empty) cnf)
     ) ast_pruned;
   Frontend.Time.unset_timeout ()
@@ -641,7 +658,7 @@ let run buttonrun buttonstop buttonclean inst_model timers_model
 	    (fun dcl ->
 	      let cnf = Cnf.make dcl in
 	      ignore (Queue.fold
-			(Frontend.process_decl 
+			(FE.process_decl 
 			   (wrapper_update_status image label buttonclean env))
 			(empty_sat_inst inst_model, true, Explanation.empty)
 			cnf)
@@ -668,7 +685,7 @@ let remove_context env () =
       match td.c with
 	| APredicate_def (_, _, _, _) ->
 	  toggle_prune env td
-	| AAxiom (_, s, _, _) 
+	| AAxiom (_, s, _) 
 	    when String.length s = 0 || (s.[0] <> '_'  && s.[0] <> '@') ->
 	  toggle_prune env td
 	| _ -> ()
@@ -922,10 +939,11 @@ let start_gui () =
 
   let smanager = GSourceView2.source_style_scheme_manager ~default:true in
   let scheme = smanager#style_scheme "tango" in
-  let cin = get_in_channel () in
+  let file = get_file () in
+  let cin = if file <> "" then open_in file else stdin in
   let lb = from_channel cin in
   let typed_ast, _ = 
-    try Frontend.open_file lb cin
+    try FE.open_file lb cin
     with
       | Why_lexer.Lexical_error s -> 
 	Loc.report err_formatter (lexeme_start_p lb, lexeme_end_p lb);
@@ -1273,7 +1291,7 @@ let start_gui () =
     `C ("All models", all_models (), set_all_models);
     `S;
     `C ("Variables in triggers", triggers_var (), set_triggers_var);
-    `C ("Glouton", glouton (), set_glouton);
+    `C ("Greedy", greedy (), set_greedy);
     `C ("Contra congruence", not (nocontracongru ()),
 	fun b -> set_nocontracongru (not b));
     `S;
@@ -1350,10 +1368,11 @@ let start_gui () =
 
 
 let start_replay session_cin =
-  let cin = get_in_channel () in
+  let file = get_file () in
+  let cin = if file <> "" then open_in file else stdin in
   let lb = from_channel cin in
   let typed_ast, _ = 
-    try Frontend.open_file lb cin
+    try FE.open_file lb cin
     with
       | Why_lexer.Lexical_error s -> 
 	Loc.report err_formatter (lexeme_start_p lb, lexeme_end_p lb);
@@ -1405,7 +1424,6 @@ let start_replay session_cin =
 
 
 let _ =
-  Options.parse_args ();
   try
     if replay() then start_replay (Some (open_in_bin (get_session_file())))
     else start_gui ()

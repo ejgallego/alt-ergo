@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -418,7 +424,7 @@ let power_bornes p (b1,b2) =
     match p with
       | 0 -> assert false
       | p when p mod 2 = 0 ->
-	  (* max_merge to have explanations !!! *)
+	(* max_merge to have explanations !!! *)
 	let m = max_merge (power_borne_sup p b1) (power_borne_sup p b2) in
 	(Large (Q.zero, Ex.empty), m)
       | _ -> (power_borne_inf p b1, power_borne_sup p b2)

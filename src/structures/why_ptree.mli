@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -84,10 +90,8 @@ type body_type_decl =
   | Enum of string list
   | Abstract
 
-type inversion = bool
-
 type decl = 
-  | Axiom of loc * string * inversion * lexpr
+  | Axiom of loc * string * lexpr
   | Rewriting of loc * string * lexpr list
   | Goal of loc * string * lexpr
   | Logic of loc * name_kind * (string * string) list * plogic_type
@@ -176,7 +180,7 @@ type 'a rwt_rule = {
 type goal_sort = Cut | Check | Thm
 
 type 'a tdecl = 
-  | TAxiom of loc * string * inversion * ('a tform, 'a) annoted
+  | TAxiom of loc * string * ('a tform, 'a) annoted
   | TRewriting of loc * string * (('a tterm, 'a) annoted rwt_rule) list
   | TGoal of loc * goal_sort * string * ('a tform, 'a) annoted
   | TLogic of loc * string list * plogic_type
@@ -192,7 +196,7 @@ type 'a tdecl =
 (* Sat entry *)
 
 type sat_decl_aux = 
-  | Assume of Formula.t * bool * inversion
+  | Assume of Formula.t * bool
   | PredDef of Formula.t
   | RwtDef of (Term.t rwt_rule) list
   | Query of string *  Formula.t * Literal.LT.t list * goal_sort

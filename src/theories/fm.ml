@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -36,12 +42,13 @@ exception NotConsistent of Literal.LT.Set.t
 
 module type EXTENDED_Polynome = sig
   include Polynome.T
-  val poly_of : r -> t
-  val alien_of : t -> r
+  val extract : r -> t option
+  val embed : t -> r
 end
 
-module Make 
+module Relation
   (X : Sig.X)
+  (Uf : Uf.S)
   (P : EXTENDED_Polynome with type r = X.r) = struct
 
     module MP = Map.Make(P)
@@ -50,7 +57,7 @@ module Make
     module MX = Map.Make(struct type t = X.r include X end)
       
     type r = P.r
-
+    type uf = Uf.t
     module LR = Literal.Make(struct type t = X.r include X end)
 
     module Seq = 
@@ -93,6 +100,14 @@ module Make
           
     end
 
+    let alien_of p =  P.embed p
+    let poly_of r = 
+      match P.extract r with
+        | Some p -> p
+        | None -> 
+          P.create 
+            [Numbers.Q.one, r] Numbers.Q.zero (X.type_info r)  
+
     type t = { 
       inequations : (Literal.LT.t * Inequation.t) list ;
       monomes: (I.t * SX.t) MX.t;
@@ -104,7 +119,7 @@ module Make
 
     (*BISECT-IGNORE-BEGIN*)
     module Debug = struct
-    
+        
       let list_of_ineqs fmt = List.iter (fprintf fmt "%a  " Inequation.print)
 
       let assume a expl = 
@@ -112,7 +127,7 @@ module Make
 	  fprintf fmt "[fm] We assume: %a@." LR.print (LR.make a);
 	  fprintf fmt "explanations: %a@." Explanation.print expl
         end
-	    
+	  
       let cross x cpos cneg others ninqs =
         if debug_fm () then begin
 	  fprintf fmt "[fm] We cross on %a@." X.print x;
@@ -165,7 +180,7 @@ module Make
 
       let no_case_split s =
 	if debug_fm () then fprintf fmt "[case-split] %s : nothing@." s
-            
+          
 
       let inconsistent_interval expl =
 	if debug_fm () then 
@@ -193,11 +208,11 @@ module Make
         { env with improved = SP.add p env.improved }
       else env
         
-  (*
-    let oldify_inequations env =
-    { env with
-    inequations = env.inequations@env.new_inequations;
-    new_inequations = [] } *)
+    (*
+      let oldify_inequations env =
+      { env with
+      inequations = env.inequations@env.new_inequations;
+      new_inequations = [] } *)
         
     let mult_bornes_vars vars monomes ty=
       List.fold_left
@@ -260,14 +275,14 @@ module Make
 	  m, env
         | _ ->
 	  match X.term_extract x with
-	    | Some t ->
+	    | Some t, _ ->
 	      let use_x = SX.singleton x in
 	      begin
 	        match Term.view t with
 		  | {Term.f = (Sy.Op Sy.Div); xs = [a; b]} ->
 		    
-		    let pa = P.poly_of (fst (X.make a)) in
-		    let pb = P.poly_of (fst (X.make b)) in
+		    let pa = poly_of (fst (X.make a)) in
+		    let pb = poly_of (fst (X.make b)) in
 		    let (pa', ca, da) as npa = P.normal_form_pos pa in
 		    let (pb', cb, db) as npb = P.normal_form_pos pb in
 		    let env, ia =
@@ -276,7 +291,7 @@ module Make
 		      init_alien are_eq expl pb npb ty use_x env in
 		    let ia, ib = match I.doesnt_contain_0 ib with
 		      | Yes (ex, _) when Q.equal ca cb
-			            && P.compare pa' pb' = 0 ->
+			  && P.compare pa' pb' = 0 ->
 		        let expl = Explanation.union ex expl in
 		        I.point da ty expl, I.point db ty expl
 		      | Yes (ex, _) ->
@@ -319,7 +334,7 @@ module Make
 	      in
 	      I.intersect u pu, use_px in
 	    let env =
-	    (* let u =  I.new_borne_inf expl Q.zero true u in *)
+	      (* let u =  I.new_borne_inf expl Q.zero true u in *)
 	      let env = 
                 { env with monomes = MX.add x (u, use_x) env.monomes } in
 	      tighten_non_lin are_eq x use_x env expl
@@ -345,8 +360,8 @@ module Make
     and tighten_non_lin are_eq x use_x env expl =
       let env' = tighten_ac are_eq x env expl in
       let env' = tighten_div x env' expl in
-    (*let use_x = SX.union use1_x use2_x in*)
-    (* let i, _ = MX.find x env.monomes in *)
+      (*let use_x = SX.union use1_x use2_x in*)
+      (* let i, _ = MX.find x env.monomes in *)
       SX.fold 
         (fun x acc -> 
 	  let _, use = MX.find x acc.monomes in
@@ -394,7 +409,7 @@ module Make
       match I.is_point u with
         | Some (v, ex) when X.type_info x <> Ty.Tint || Q.is_integer v ->
           let eq = 
-	    L.Eq (x,(P.alien_of (P.create [] v (X.type_info x)))) in
+	    LR.mkv_eq x (alien_of (P.create [] v (X.type_info x))) in
 	  Some (eq, None, ex)
         | _ -> None
 
@@ -436,19 +451,19 @@ module Make
 	      else Trivial_ineq v
 	  else Other
 	    
-  (*let ineqs_from_dep dep borne_inf is_le =
-    List.map
-    (fun {poly_orig = p; coef = c} -> 
-    let (m,v,ty) = P.mult_const minusone p in
-  (* quelle valeur pour le ?????? *)
-    { ple0 = {poly = (m, v +/ (Q.div borne_inf c), ty); le = is_le} ;
-    dep = []}
-    )dep*)
+    (*let ineqs_from_dep dep borne_inf is_le =
+      List.map
+      (fun {poly_orig = p; coef = c} -> 
+      let (m,v,ty) = P.mult_const minusone p in
+    (* quelle valeur pour le ?????? *)
+      { ple0 = {poly = (m, v +/ (Q.div borne_inf c), ty); le = is_le} ;
+      dep = []}
+      )dep*)
 
     let mk_equality p =
-      let r1 = P.alien_of p in
-      let r2 = P.alien_of (P.create [] Q.zero (P.type_info p)) in
-      L.Eq (r1, r2)
+      let r1 = alien_of p in
+      let r2 = alien_of (P.create [] Q.zero (P.type_info p)) in
+      LR.mkv_eq r1 r2
 
     let fm_equalities env eqs { Inequation.ple0 = p; dep = dep; expl = ex } =
       let inqs, eqs =
@@ -521,13 +536,13 @@ module Make
     let add_inequations are_eq acc lin expl = 
       List.fold_left
         (fun (env, eqs) ineq ->
-	(* let expl = List.fold_left 
-	   (fun expl (l,_,_,_) -> 
-	   Explanation.union (*Explanation.everything*)
-	   (Explanation.singleton (Formula.mk_lit l))
-	   expl
-	   ) expl ineq.Inequation.dep 
-	   in *)
+	  (* let expl = List.fold_left 
+	     (fun expl (l,_,_,_) -> 
+	     Explanation.union (*Explanation.everything*)
+	     (Explanation.singleton (Formula.mk_lit l))
+	     expl
+	     ) expl ineq.Inequation.dep 
+	     in *)
 	  let expl = Explanation.union ineq.Inequation.expl expl in
 	  match ineq_status ineq with
 	    | Bottom           ->
@@ -566,13 +581,13 @@ module Make
                   are_eq env eqs expl (a, x, v) ineq.Inequation.is_le
 	      in
               
-	       (*let env,eqs = update_bornes env eqs ((a,x),c) ineq.ple0.le in
-		 let env,eqs = update_polynomes env eqs ineq in
-		 env, pers_ineqs, eqs*)
+	      (*let env,eqs = update_bornes env eqs ((a,x),c) ineq.ple0.le in
+		let env,eqs = update_polynomes env eqs ineq in
+		env, pers_ineqs, eqs*)
 	      env, eqs
 
 	    | Other            -> 
-	       (* let env = update_polynomes env expl in *)
+	      (* let env = update_polynomes env expl in *)
 	      env, eqs
 
 	        
@@ -598,24 +613,24 @@ module Make
           | [] -> acc
           | { Inequation.ple0 = p1; is_le = k1; dep = d1; expl = ex1 } :: l ->
 	    let n1 = Q.abs (P.find x p1) in
-	  (* let ty = P.type_info p1 in *)
+	    (* let ty = P.type_info p1 in *)
 	    let acc = 
 	      List.fold_left 
 	        (fun acc 
                   {Inequation.ple0 = p2; is_le = k2; dep=d2; expl = ex2} ->
-		  Options.exec_thread_yield ();
-		  let n2 = Q.abs (P.find x p2) in
-		 (* let n1, n2 =  div_by_pgcd (n1, n2) ty in *)
-		  let p = P.add
-		    (P.mult (P.create [] n2 (P.type_info p2)) p1)
-		    (P.mult (P.create [] n1 (P.type_info p1)) p2) in
-		  let d1 = mult_list n2 d1 in
-		  let d2 = mult_list n1 d2 in
-		  let ni = 
-		    { Inequation.ple0 = p;  is_le = k1&&k2; dep = d1 -@ d2;
-		      expl = Explanation.union ex1 ex2 }
-		  in 
-		  ni::acc
+		    Options.exec_thread_yield ();
+		    let n2 = Q.abs (P.find x p2) in
+		    (* let n1, n2 =  div_by_pgcd (n1, n2) ty in *)
+		    let p = P.add
+		      (P.mult (P.create [] n2 (P.type_info p2)) p1)
+		      (P.mult (P.create [] n1 (P.type_info p1)) p2) in
+		    let d1 = mult_list n2 d1 in
+		    let d2 = mult_list n1 d2 in
+		    let ni = 
+		      { Inequation.ple0 = p;  is_le = k1&&k2; dep = d1 -@ d2;
+		        expl = Explanation.union ex1 ex2 }
+		    in 
+		    ni::acc
 	        ) acc cpos
 	    in 
 	    cross_rec acc l
@@ -653,7 +668,7 @@ module Make
         | [] -> acc
         | ineq :: l' ->
 	  try
-	  (* let x = Inequation.choose ineq in *)
+	    (* let x = Inequation.choose ineq in *)
 	    let x = choose_var l in
 	    let cpos, cneg, others = split x l in
 	    let ninqs = cross x cpos cneg in
@@ -663,12 +678,12 @@ module Make
 	    fourier are_eq acc (ninqs -@ others) expl
 	  with Not_found -> add_inequations are_eq acc l expl
 
-  (*
-    let fm env eqs expl = 
-    fourier (env, eqs)
-    (List.map snd env.inequations)
-    (List.map snd env.new_inequations) expl
-  *)
+    (*
+      let fm env eqs expl = 
+      fourier (env, eqs)
+      (List.map snd env.inequations)
+      (List.map snd env.new_inequations) expl
+    *)
 
     let fm are_eq env eqs expl = 
       Options.tool_req 4 "TR-Arith-Fm";
@@ -768,26 +783,26 @@ module Make
 	  in
 	  let env = 
 	    { env with 
-	      known_eqs = SX.add (P.alien_of p) env.known_eqs
+	      known_eqs = SX.add (alien_of p) env.known_eqs
             } in
 	  env, eqs
 
     let normal_form a = match a with
       | L.Builtin (false, n, [r1; r2]) 
           when is_le n && X.type_info r1 = Ty.Tint ->
-        let pred_r1 = P.sub (P.poly_of r1) (P.create [] Q.one Ty.Tint) in
-	L.Builtin (true, n, [r2; P.alien_of pred_r1])
+        let pred_r1 = P.sub (poly_of r1) (P.create [] Q.one Ty.Tint) in
+	LR.mkv_builtin true  n  [r2; alien_of pred_r1]
 
       | L.Builtin (true, n, [r1; r2]) when 
 	  not (is_le n) && X.type_info r1 = Ty.Tint ->
-        let pred_r2 = P.sub (P.poly_of r2) (P.create [] Q.one Ty.Tint) in
-	L.Builtin (true, ale, [r1; P.alien_of pred_r2])
+        let pred_r2 = P.sub (poly_of r2) (P.create [] Q.one Ty.Tint) in
+	LR.mkv_builtin true ale [r1; alien_of pred_r2]
 
       | L.Builtin (false, n, [r1; r2]) when is_le n -> 
-	L.Builtin (true, alt, [r2; r1])
+	LR.mkv_builtin true alt [r2; r1]
 
       | L.Builtin (false, n, [r1; r2]) when is_lt n ->
-	L.Builtin (true, ale, [r2; r1])
+	LR.mkv_builtin true ale [r2; r1]
 
       | _ -> a
 	
@@ -802,13 +817,13 @@ module Make
       let known, eqs = 
         MP.fold
           (fun p i (knw, eqs) ->
-            let xp = P.alien_of p in
+            let xp = alien_of p in
             if SX.mem xp knw then knw, eqs
             else 
               match I.is_point i with
                 | Some (num, ex) ->
-                  let r2 = P.alien_of (P.create [] num (P.type_info p)) in
-                  SX.add xp knw, (L.Eq(xp, r2), None, ex) :: eqs
+                  let r2 = alien_of (P.create [] num (P.type_info p)) in
+                  SX.add xp knw, (LR.mkv_eq xp r2, None, ex) :: eqs
                 | None -> knw, eqs
           ) env.polynomes  (env.known_eqs, eqs)
       in {env with known_eqs= known}, eqs
@@ -823,8 +838,8 @@ module Make
             else 
               match I.is_point i with
                 | Some (num, ex) ->
-                  let r2 = P.alien_of (P.create [] num (X.type_info x)) in
-                  SX.add x knw, (L.Eq(x, r2), None, ex) :: eqs
+                  let r2 = alien_of (P.create [] num (X.type_info x)) in
+                  SX.add x knw, (LR.mkv_eq x r2, None, ex) :: eqs
                 | None -> knw, eqs
           ) env.monomes  (env.known_eqs, eqs)
       in {env with known_eqs= known}, eqs
@@ -833,7 +848,9 @@ module Make
       let env, eqs = equalities_from_polynomes env eqs in
       equalities_from_monomes env eqs
 
-    let assume env la ~are_eq ~are_neq ~class_of ~classes =
+    let assume env uf la =
+      let are_eq = Uf.are_equal uf in
+      let classes = Uf.cl_extract uf in
       let env = {env with improved = SP.empty; classes = classes} in
       Debug.env env;
       let env, eqs, new_ineqs, expl =
@@ -850,8 +867,8 @@ module Make
 	        | L.Builtin(_, n, [r1;r2]) when is_le n || is_lt n ->
                   let root = match root with
 	            | Some a -> a | None -> assert false in
-		  let p1 = P.poly_of r1 in
-		  let p2 = P.poly_of r2 in
+		  let p1 = poly_of r1 in
+		  let p2 = poly_of r2 in
 		  let ineq = Inequation.create p1 p2 (is_le n) root expl in
 		  let env =
 		    init_monomes
@@ -863,13 +880,13 @@ module Make
 		  env, eqs, true, expl
 
 	        | L.Distinct (false, [r1; r2]) when is_num r1 && is_num r2 -> 
-		  let p = P.sub (P.poly_of r1) (P.poly_of r2) in
+		  let p = P.sub (poly_of r1) (poly_of r2) in
 		  let env = init_monomes are_eq env p SX.empty expl in
 		  let env, eqs = add_disequality are_eq env eqs p expl in
                   env, eqs, new_ineqs, expl
 		    
 	        | L.Eq(r1, r2) when is_num r1 && is_num r2 -> 
-		  let p = P.sub (P.poly_of r1) (P.poly_of r2) in
+		  let p = P.sub (poly_of r1) (poly_of r2) in
 		  let env = init_monomes are_eq env p SX.empty expl in
 		  let env, eqs = add_equality are_eq env eqs p expl in
                   env, eqs, new_ineqs, expl
@@ -907,36 +924,36 @@ module Make
         Debug.inconsistent_interval expl ;
         raise (Exception.Inconsistent (expl, env.classes))
           
-    let query env a_ex ~are_eq ~are_neq ~class_of ~classes =
+    let query env uf a_ex =
       try 
-        ignore(assume env [a_ex] ~are_eq ~are_neq ~class_of ~classes); 
+        ignore(assume env uf [a_ex]); 
         No
       with Exception.Inconsistent (expl, classes) -> Yes (expl, classes)
 
 
-    let assume env la ~are_eq ~are_neq ~class_of ~classes =
+    let assume env uf la =
       if profiling () then
         try 
 	  Options.exec_timer_start Timers.TArith;
-	  let res =assume env la ~are_eq ~are_neq ~class_of ~classes in
+	  let res =assume env uf la in
 	  Options.exec_timer_pause Timers.TArith;
 	  res
         with e -> 
 	  Options.exec_timer_pause Timers.TArith;
 	  raise e
-      else assume env la ~are_eq ~are_neq ~class_of ~classes
+      else assume env uf la
 
-    let query env la ~are_eq ~are_neq ~class_of ~classes =
+    let query env uf la =
       if profiling () then
         try 
 	  Options.exec_timer_start Timers.TArith;
-	  let res = query env la ~are_eq ~are_neq ~class_of ~classes in
+	  let res = query env uf la in
 	  Options.exec_timer_pause Timers.TArith;
 	  res
         with e -> 
 	  Options.exec_timer_pause Timers.TArith;
 	  raise e
-      else query env la ~are_eq ~are_neq ~class_of ~classes
+      else query env uf la
 
     let case_split_polynomes env = 
       let o = MP.fold
@@ -954,10 +971,10 @@ module Make
         ) env.polynomes None in
       match o with 
         | Some (s, p, n, ex) -> 
-          let r1 = P.alien_of p in
-	  let r2 = P.alien_of (P.create [] n  (P.type_info p)) in
+          let r1 = alien_of p in
+	  let r2 = alien_of (P.create [] n  (P.type_info p)) in
           Debug.case_split r1 r2;
-	  [L.Eq(r1, r2), ex, s]
+	  [LR.mkv_eq r1 r2, ex, s]
         | None -> 
           Debug.no_case_split "polynomes";
 	  []
@@ -980,9 +997,9 @@ module Make
         | Some (s,x,n,ex) -> 
           let ty = X.type_info x in
           let r1 = x in
-	  let r2 = P.alien_of (P.create [] n  ty) in
+	  let r2 = alien_of (P.create [] n  ty) in
           Debug.case_split r1 r2;
-	  [L.Eq(r1, r2), ex, s]
+	  [LR.mkv_eq r1 r2, ex, s]
         | None -> 
           Debug.no_case_split "monomes";
 	  []
@@ -1007,7 +1024,7 @@ module Make
       | _ ->
 	fprintf fmt "Relation:";
         List.iter (fun (t, r) ->
-          let p = P.poly_of r in
+          let p = poly_of r in
           let ty = P.type_info p in
           if ty = Ty.Tint || ty = Ty.Treal then
 	    let p', c, d = P.normal_form_pos p in

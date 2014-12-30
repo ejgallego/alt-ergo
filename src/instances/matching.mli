@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -14,46 +20,32 @@
 (*   This file is distributed under the terms of the CeCILL-C licence         *)
 (******************************************************************************)
 
-type gsubst = { 
-  sbs : Term.t Subst.t;
-  sty : Ty.subst;
-  gen : int ; 
-  goal : bool; 
-  s_term_orig : Term.t list;
-  s_lem_orig : Formula.t;
-}
-
-type trigger_info = {
-  trigger_query : Literal.LT.t option; 
-  trigger_age : int ; 
-  trigger_orig : Formula.t ; 
-  trigger_formula : Formula.t ; 
-  trigger_dep : Explanation.t ;
-}
-
-type term_info = {
-  term_age : int ; 
-  term_from_goal : bool ;
-  term_from_formula : Formula.t option;
-  term_from_terms : Term.t list;
-}
-
-module type X = sig
-  type t
-
-  val class_of : t -> Term.t -> Term.t list
-  val query : Literal.LT.t -> t -> Sig.answer
-end
-
 module type S = sig
   type t
-  type uf
+  type tbox
 
   val empty : t
-  val add_term : term_info -> Term.t -> t -> t 
-  val add_trigger : trigger_info -> Term.t list -> t -> t
-  val query : t -> uf -> (trigger_info * gsubst list) list
-    
+  val add_terms : t -> Term.Set.t -> Formula.gformula -> t
+  val add_lemma : t -> Formula.gformula -> Explanation.t -> t
+  val add_predicate : t -> Formula.gformula -> t
+
+  type instances = (Formula.gformula * Explanation.t) list
+
+  val m_lemmas :
+    t ->
+    tbox ->
+    (Formula.t -> Formula.t -> bool) ->
+    instances * instances (* goal_directed, others *)
+
+  val m_predicates :
+    t ->
+    tbox ->
+    (Formula.t -> Formula.t -> bool) ->
+    instances * instances (* goal_directed, others *)
+
+  (* returns names of used axioms/predicates * unused axioms/predicates *)
+  val retrieve_used_context : t -> Explanation.t -> string list * string list
+
 end
 
-module Make (X : X) : S with type uf = X.t
+module Make (X : Theory.S) : S with type tbox = X.t

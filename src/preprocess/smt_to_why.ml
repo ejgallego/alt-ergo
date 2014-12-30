@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -137,7 +143,7 @@ let rec term_to_desc env = function
     with Not_found -> [None,PPvar str])
   | Fun ("+" | "-" | "*" | "/" | "mod" | "div" as s, [a;b]) -> 
     let ta = term env a and tb = term env b in
-      (*PPinfix (ta, infix s, tb)*)
+    (*PPinfix (ta, infix s, tb)*)
     product (fun x y -> PPinfix (x, infix s, y)) ta tb
   (* Le - est pour AUFLIRA *)
   | Fun (("-"|"~"), [a]) -> 
@@ -176,13 +182,13 @@ and form_to_desc env = function
   (*incorrect*)
 
   | Let (ident,t,f) -> 
-  (*      let f' = envformula env f in
-          term_to_formula (fun x -> PPlet (ident,x,f')) (term env t)
-  *)
+    (*      let f' = envformula env f in
+            term_to_formula (fun x -> PPlet (ident,x,f')) (term env t)
+    *)
 
-  (*Pforall ([ident],PPTvarid(ident,f1.floc),[],mlexpr (PPinfix(mlexpr
-    (apply_list_product make_equal [(term env t);[None,mlexpr (PPvar
-    ident)]]),PPimplies,envformula env f1)))*)
+    (*Pforall ([ident],PPTvarid(ident,f1.floc),[],mlexpr (PPinfix(mlexpr
+      (apply_list_product make_equal [(term env t);[None,mlexpr (PPvar
+      ident)]]),PPimplies,envformula env f1)))*)
     form_to_desc {env with uterm = StringMap.add ident (term_to_desc
                                                           env t.term) env.uterm} f.formula
 
@@ -263,7 +269,7 @@ let bench_to_why = function
   | Pbformula (pos,f) -> 
     [Goal (pos, "", formula f)]
   | Pbassumption (pos,f) -> 
-    [Axiom (pos, "", false, formula f)]
+    [Axiom (pos, "", formula f)]
   | Pbrewriting (pos, lf) -> 
     [Rewriting (pos, "", List.map formula lf)]
   | Pannotation  -> []

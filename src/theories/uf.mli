@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -16,36 +22,35 @@
 
 module type S = sig
   type t
+  type r
 
-  module R : Sig.X
-
-  val empty :  t
+  val empty : unit -> t
   val add : t -> Term.t -> t * Literal.LT.t list
 
   val mem : t -> Term.t -> bool
 
-  val find : t -> Term.t -> R.r * Explanation.t
+  val find : t -> Term.t -> r * Explanation.t
 
-  val find_r : t -> R.r -> R.r * Explanation.t
+  val find_r : t -> r -> r * Explanation.t
 
   val union : 
-    t -> R.r -> R.r -> Explanation.t -> 
-    t * (R.r * (R.r * R.r * Explanation.t) list * R.r) list
+    t -> r -> r -> Explanation.t -> 
+    t * (r * (r * r * Explanation.t) list * r) list
 
-  val distinct : t -> R.r list -> Explanation.t -> t
+  val distinct : t -> r list -> Explanation.t -> t
 
   val are_equal : t -> Term.t -> Term.t -> Sig.answer
   val are_distinct : t -> Term.t -> Term.t -> Sig.answer
-  val already_distinct : t -> R.r list -> bool
+  val already_distinct : t -> r list -> bool
 
   val class_of : t -> Term.t -> Term.t list
   val cl_extract : t -> Term.Set.t list
   val model : t -> 
-    (R.r * Term.t list * (Term.t * R.r) list) list * (Term.t list) list
+    (r * Term.t list * (Term.t * r) list) list * (Term.t list) list
 
   val print : Format.formatter -> t -> unit
   val term_repr : t -> Term.t -> Term.t
 
 end
 
-module Make ( X : Sig.X ) : S with module R = X
+module Make (X : Sig.X) : S with type r = X.r

@@ -1,19 +1,3 @@
-(******************************************************************************)
-(*     The Alt-Ergo theorem prover                                            *)
-(*     Copyright (C) 2006-2013                                                *)
-(*     CNRS - INRIA - Universite Paris Sud                                    *)
-(*                                                                            *)
-(*     Sylvain Conchon                                                        *)
-(*     Evelyne Contejean                                                      *)
-(*                                                                            *)
-(*     Francois Bobot                                                         *)
-(*     Mohamed Iguernelala                                                    *)
-(*     Stephane Lescuyer                                                      *)
-(*     Alain Mebsout                                                          *)
-(*                                                                            *)
-(*   This file is distributed under the terms of the CeCILL-C licence         *)
-(******************************************************************************)
-
 (*
  * The Why certification tool
  * Copyright (C) 2002 Jean-Christophe FILLIATRE
@@ -45,7 +29,6 @@
       [ "ac", AC;
 	"and", AND;
 	"axiom", AXIOM;
-	"inversion", INVERSION;
 	"bitv", BITV;
         "bool", BOOL;
 	"check", CHECK;
@@ -59,7 +42,6 @@
 	"goal", GOAL;
 	"if", IF;
 	"in", IN; 
-	"include", INCLUDE;
 	"int", INT;
 	"let", LET;
 	"logic", LOGIC;

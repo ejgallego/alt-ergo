@@ -1,4 +1,10 @@
 (******************************************************************************)
+(*     Alt-Ergo: The SMT Solver For Software Verification                     *)
+(*     Copyright (C) 2013-2014 --- OCamlPro                                   *)
+(*     This file is distributed under the terms of the CeCILL-C licence       *)
+(******************************************************************************)
+
+(******************************************************************************)
 (*     The Alt-Ergo theorem prover                                            *)
 (*     Copyright (C) 2006-2013                                                *)
 (*     CNRS - INRIA - Universite Paris Sud                                    *)
@@ -103,12 +109,12 @@ let tag_callback t env sbuf ~origin:y z i =
       if List.mem env.last_tag env.search_tags then 
         env.last_tag#set_properties 
 	  [`BACKGROUND "gold"; `UNDERLINE_SET false]
-	(* else if List.mem env.last_tag env.proof_tags then  *)
-        (*   env.last_tag#set_properties  *)
-	(*     [`BACKGROUND "lime green"; `UNDERLINE_SET false] *)
-	(* else if List.mem env.last_tag env.proof_toptags then  *)
-        (*   env.last_tag#set_properties  *)
-	(*     [`BACKGROUND "pale green"; `UNDERLINE_SET false] *)
+      (* else if List.mem env.last_tag env.proof_tags then  *)
+      (*   env.last_tag#set_properties  *)
+      (*     [`BACKGROUND "lime green"; `UNDERLINE_SET false] *)
+      (* else if List.mem env.last_tag env.proof_toptags then  *)
+      (*   env.last_tag#set_properties  *)
+      (*     [`BACKGROUND "pale green"; `UNDERLINE_SET false] *)
       else
         env.last_tag#set_properties 
 	  [`BACKGROUND_SET false; `UNDERLINE_SET false];
@@ -468,7 +474,7 @@ let rec least_nested_form used_vars af =
     | _, AFnamed (_, af) -> 
       least_nested_form used_vars af
 
-let rec add_instance_aux ?(register=true) env id af aname inv vars entries =
+let rec add_instance_aux ?(register=true) env id af aname vars entries =
   let ptag =  (tag env.inst_buffer) in
   let goal_form, tyenv, loc =
     let rec find_goal = function
@@ -486,7 +492,7 @@ let rec add_instance_aux ?(register=true) env id af aname inv vars entries =
   env.inst_buffer#place_cursor  ~where:env.inst_buffer#end_iter;
   if ln_form = Exists goal_form then begin
     let hy = 
-      AAxiom (loc, (sprintf "%s%s" "_instance_" aname), inv, instance.c) in
+      AAxiom (loc, (sprintf "%s%s" "_instance_" aname), instance.c) in
     let ahy = new_annot env.inst_buffer hy instance.id ptag in
     let rev_ast = List.rev env.ast in
     let rev_ast = match rev_ast with 
@@ -521,14 +527,14 @@ let rec add_instance_aux ?(register=true) env id af aname inv vars entries =
   if register then save env.actions (AddInstance (id, aname, entries))
 
 
-and add_instance_entries ?(register=true) env id af aname inv 
+and add_instance_entries ?(register=true) env id af aname
     vars (entries:GEdit.entry list) =
 
   let entries = List.map (fun e -> e#text) entries in
-  add_instance_aux ~register env id af aname inv vars entries
+  add_instance_aux ~register env id af aname vars entries
 
-and add_instance ?(register=true) env id af aname inv entries =
-  add_instance_aux ~register env id af aname inv
+and add_instance ?(register=true) env id af aname entries =
+  add_instance_aux ~register env id af aname
     (list_uquant_vars_in_form af) entries
 
 
@@ -553,12 +559,12 @@ and popup_axiom t env offset () =
   ignore(GMisc.image ~stock:`CANCEL ~packing:phbox#add ());
   ignore(GMisc.label ~text:"Cancel" ~packing:phbox#add ());
 
-  let vars, entries, id, af, aname, inv = 
+  let vars, entries, id, af, aname = 
     match find t env.buffer env.ast with
       | Some (AD (atd, tyenv)) -> 
 	begin
 	  match atd.c with
-	    | AAxiom (_, aname, _, af) ->
+	    | AAxiom (_, aname, af) ->
 	      pop_w#set_title ("Instantiate axiom "^aname)
 	    | APredicate_def (_, aname,_ , af) ->
 	      pop_w#set_title ("Instantiate predicate "^aname)
@@ -566,7 +572,7 @@ and popup_axiom t env offset () =
 	end;
 	begin
 	  match atd.c with
-	    | AAxiom (_, aname, _, af)
+	    | AAxiom (_, aname, af)
 	    | APredicate_def (_, aname,_ , af) ->
 	      let vars = list_uquant_vars_in_form af in
 	      let rows = List.length vars in
@@ -587,11 +593,7 @@ and popup_axiom t env offset () =
 		    )::entries in
 		  entries, i+1
 		) ([],0) vars in
-	      let inv = 
-		match atd.c with 
-		  | AAxiom(_, _, inv, _ ) -> inv | _ -> false
-	      in
-	      vars, entries, atd.id, af, aname, inv
+	      vars, entries, atd.id, af, aname
 	    | _ -> assert false
 	end
       | _ -> assert false
@@ -604,7 +606,7 @@ and popup_axiom t env offset () =
   ignore(button_ok#connect#clicked ~callback:
 	   (fun () ->
 	     try
-	       add_instance_entries env id af aname inv vars entries;
+	       add_instance_entries env id af aname vars entries;
 	       pop_w#destroy ()
 		 
 	     with 
@@ -879,7 +881,7 @@ and connect_aaform env sbuf aaf =
 let connect_atyped_decl env td =
   match td.c with
     | APredicate_def (_, _, _, af)
-    | AAxiom (_, _, _, af) ->
+    | AAxiom (_, _, af) ->
       connect_axiom_tag env td.tag;
       connect_aform env env.buffer af
     | ARewriting (_, _, arwtl) ->
